@@ -1,0 +1,15 @@
+{
+  "_comment": "Adversarial: DIMENSION_MISMATCH — simulated via incompatible embedding dimension",
+  "id": "rag-golden-10",
+  "scenario": "adversarial_dimension_mismatch",
+  "question": "적합성 평가 기준에 대해 알려주세요.",
+  "expected_faithfulness_min": null,
+  "expected_fail_closed_reason_code": "DIMENSION_MISMATCH",
+  "expected_source_types": [],
+  "metadata": {
+    "adversarial_type": "embedding_dimension_mismatch",
+    "note": "This scenario is triggered by injecting a malformed embedding vector in the test fixture, not by the query content itself. The test must override the embedding service to return a mismatched dimension.",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

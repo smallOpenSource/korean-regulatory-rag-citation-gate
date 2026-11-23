@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: typical PB query about suitability rules for high-risk products",
+  "id": "rag-golden-01",
+  "scenario": "happy_path",
+  "question": "고위험 상품 권유 시 적합성 평가에서 반드시 확인해야 하는 6가지 요소는 무엇인가요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["REG_PAGE", "MANUAL"],
+  "metadata": {
+    "regulation_ref": "자본시장법 §46 + 금소법 §17",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

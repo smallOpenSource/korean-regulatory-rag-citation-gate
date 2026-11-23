@@ -1,0 +1,98 @@
+# gitleaks config for Harness PoC
+# Reference: https://github.com/gitleaks/gitleaks#configuration
+# Approved by ADR-003 §3 (pre-seeded) and REG-05 T289.
+
+title = "harness-wmah-gitleaks"
+
+# Inherit the default ruleset (Azure / AWS / generic high-entropy / etc.) and add
+# Harness-specific rules / allowlists on top.
+[extend]
+useDefault = true
+
+# ---------------------------------------------------------------------------
+# Harness custom rules
+# ---------------------------------------------------------------------------
+
+[[rules]]
+id = "harness-azure-openai-api-key"
+description = "Azure OpenAI / Cognitive Services 32-hex API key (REG-05 secret hygiene)"
+regex = '''(?i)(azure_openai_api_key|AZURE_OPENAI_API_KEY|cognitive[_-]?services[_-]?key)\s*[:=]\s*["']?[0-9a-f]{32}["']?'''
+tags = ["azure", "openai", "key"]
+
+[[rules]]
+id = "harness-broker-app-secret"
+description = "Brokerage OpenAPI app secret"
+regex = '''(?i)(BROKER_APP_SECRET|broker[_-]?app[_-]?secret)\s*[:=]\s*["']?[A-Za-z0-9_+/=]{40,}["']?'''
+tags = ["broker", "secret"]
+
+[[rules]]
+id = "harness-broker-app-key"
+description = "Brokerage OpenAPI app key"
+regex = '''(?i)(BROKER_APP_KEY|broker[_-]?app[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9_+/=]{30,}["']?'''
+tags = ["broker", "key"]
+
+[[rules]]
+id = "harness-jwt-secret"
+description = "Hardcoded JWT shared secret outside env"
+regex = '''(?i)(JWT_SECRET|jwt[_-]?secret)\s*[:=]\s*["']([A-Za-z0-9+/=_-]{16,})["']'''
+tags = ["jwt", "secret"]
+
+[[rules]]
+id = "harness-data-go-kr-service-key"
+description = "data.go.kr service key (Korean public-data portal)"
+regex = '''(?i)(DATA_GO_KR_SERVICE_KEY|data[_-]?go[_-]?kr[_-]?service[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9_+/=%]{40,}["']?'''
+tags = ["data.go.kr", "key"]
+
+[[rules]]
+id = "harness-bge-internal-key"
+description = "Internal BGE embedding / rerank API key"
+regex = '''(?i)(BGE_(EMBEDDING|RERANK)_API_KEY|bge[_-]?(embedding|rerank)[_-]?api[_-]?key)\s*[:=]\s*["']?[A-Za-z0-9_+/=]{20,}["']?'''
+tags = ["bge", "key"]
+
+# ---------------------------------------------------------------------------
+# Allowlist — synthetic / example / template values that look like secrets
+# but are explicitly safe.
+# ---------------------------------------------------------------------------
+
+[allowlist]
+description = "Harness PoC false-positive allowlist (synthetic + templates)"
+
+paths = [
+    '''\.gitleaks\.toml$''',                          # this config file itself
+    '''docs/regulations/REG-05_internet_security\.md$''',   # documents JWT BCP samples
+    '''docs/security/SEC-03_zap_baseline\.md$''',           # ZAP sanitized report
+    '''docs/architecture/ADR-002.*\.md$''',                 # email schema doc may show placeholder
+    '''db/fixtures/seed_synthetic\.sql$''',                 # synthetic seed only
+    '''tests/fixtures/.*''',                                # test fixtures
+    '''\.omx/reports/.*''',                                 # generated reports (e.g. gitleaks reruns)
+    '''\.omc/.*''',                                         # OMC orchestration artifacts
+    '''node_modules/.*''',
+    '''apps/web/dist/.*''',
+    '''__pycache__/.*''',
+]
+
+regexes = [
+    # Synthetic / template placeholders documented in .env.example
+    '''replace-with-[a-z0-9-]+''',
+    '''replace-password''',
+    '''change-me[-_][a-z0-9-]+''',
+    '''CHANGE[_-]?ME[_-]?[A-Z0-9_]+''',
+    # Synthetic emails (RFC 2606 / Harness convention)
+    '''[A-Za-z0-9._%+-]+@example\.invalid''',
+    '''[A-Za-z0-9._%+-]+@example\.(com|org|net)''',
+    # Harness synthetic fixtures
+    '''HarnessSynthetic![0-9]{4}''',
+    # documented sample JWT 'eyJ...' tokens used in security docs
+    '''eyJhbGciOi[A-Za-z0-9_-]{0,8}\.eyJ[A-Za-z0-9_-]{0,32}\.[A-Za-z0-9_-]{0,32}''',
+]
+
+commits = []
+
+# Stopwords for default ruleset reduction (default rules trigger on these).
+stopwords = [
+    "synthetic",
+    "example",
+    "placeholder",
+    "template",
+    "replace-with",
+]

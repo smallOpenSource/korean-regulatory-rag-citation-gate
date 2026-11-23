@@ -1,0 +1,70 @@
+{
+  "_meta": {
+    "description": "Mirror of apps/web/src/lib/empty-state-whitelist.ts for Python audit-script consumption (scripts/audit_v1_ui_matrix.py). Routes listed here legitimately render em-dash or percent characters as design-intent prose / metric content, NOT as empty-state placeholders. Audit detectors must skip placeholder findings for these slugs.",
+    "ts_sot_path": "apps/web/src/lib/empty-state-whitelist.ts",
+    "cycle": "svc-follow-up-v1 / Wave2-Q1",
+    "evidence_inventory": "audit-out/service-viability-v1/axis-4/placeholder_inventory.json",
+    "classification_report": ".omc/handoffs/svc-follow-up-v1__wave2-q1-placeholder-classification.md",
+    "last_updated_iso": "2026-05-24"
+  },
+  "slugs": [
+    "email-drafts",
+    "house-views",
+    "conflict-of-interest",
+    "marketing-review",
+    "autopilot-demo",
+    "audit",
+    "audit-viewer",
+    "batch"
+  ],
+  "entries": [
+    {
+      "routeKey": "emailDrafts",
+      "slug": "email-drafts",
+      "intents": ["em_dash_title_separator"],
+      "evidence": "DOM: '[SYN] Service Viability Audit v1 — 상담 안내 (DRAFT 1)'"
+    },
+    {
+      "routeKey": "houseViews",
+      "slug": "house-views",
+      "intents": ["em_dash_title_separator"],
+      "evidence": "DOM: '[SYN] Service Viability Audit v1 — 대체투자 시각'"
+    },
+    {
+      "routeKey": "conflictOfInterest",
+      "slug": "conflict-of-interest",
+      "intents": ["em_dash_title_separator"],
+      "evidence": "DOM: '[SYN] 자사 발행 ETF 추천 — 이해상충 사전공시'"
+    },
+    {
+      "routeKey": "marketingReview",
+      "slug": "marketing-review",
+      "intents": ["em_dash_title_separator", "em_dash_form_placeholder"],
+      "evidence": "DOM form placeholder='UUID — gate 결과를 consultation에 반영'"
+    },
+    {
+      "routeKey": "autopilotDemo",
+      "slug": "autopilot-demo",
+      "intents": ["em_dash_aria_label"],
+      "evidence": "DOM aria-label='1. 합성 고객 선택 — 대기'"
+    },
+    {
+      "routeKey": "audit",
+      "slug": "audit",
+      "intents": ["em_dash_audit_row_separator"],
+      "evidence": "DOM: 'REG-05 T280 — /auth/refresh per-IP 429 차단'"
+    },
+    {
+      "routeKey": "auditViewer",
+      "slug": "audit-viewer",
+      "intents": ["em_dash_audit_row_separator"],
+      "evidence": "DOM: 'REG-05 T280 — /auth/refresh per-IP 429 차단'"
+    },
+    {
+      "routeKey": "batch",
+      "slug": "batch",
+      "intents": ["percent_in_compound_metric"],
+      "evidence": "DOM: '커버리지 비율 100.0%' — detector regex matches '0%' substring of '100.0%'"
+    }
+  ]
+}

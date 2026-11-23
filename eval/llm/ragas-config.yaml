@@ -1,0 +1,105 @@
+# WMAH Audit Stage 2 Lane 3 — RAGAS Config for RAG QA service
+# Target: rag_qa pattern (apps/api/harness/services/ai/faithfulness.py +
+#         apps/api/harness/services/consultation_briefing.py retrieval path)
+#
+# References:
+#   - RAGAS docs: https://docs.ragas.io/en/stable/concepts/metrics/index.html
+#   - WMAH faithfulness service: apps/api/harness/services/ai/faithfulness.py
+#   - LLM-as-evaluator-limitation caveat: 80%+ false-positive proxy bound
+
+version: 1
+schema: wmah-ragas-config/v1
+generated_at: "2026-05-21"
+
+target_service: rag_qa
+service_path: apps/api/harness/services/ai/faithfulness.py
+
+# Dataset (Stage 3 collects traces)
+dataset:
+  source: jsonl
+  path: audit-out/stage-3/llm/rag-traces.jsonl
+  schema:
+    question: str           # 한국어 PB 질의
+    contexts: List[str]     # retrieved chunk 본문(들)
+    answer: str             # 모델 출력
+    ground_truth: str       # synthetic Q&A pair의 reference answer
+  required_min_rows: 30
+  recommended_rows: 100
+
+# Synthetic Q&A reference set (한국어 PB 도메인)
+ground_truth_source:
+  type: synthetic
+  path: eval/llm/synth/rag-qa-ground-truth.jsonl  # Stage 3에서 생성 예정
+  generation_seed: 42
+  domains:
+    - 은퇴_플래닝
+    - 세금_상속
+    - 자산배분_리밸런싱
+    - ETF_펀드_상품
+    - 시장_전망_매크로
+    - 컴플라이언스_규정
+
+# RAGAS metrics (4)
+metrics:
+  - name: context_precision
+    threshold: 0.70
+    weight: 0.25
+    description: "검색된 context 중 답변에 기여한 비율"
+    fail_action: "stage-3 rerun with k=10 -> k=20"
+
+  - name: context_recall
+    threshold: 0.70
+    weight: 0.25
+    description: "ground truth claim이 retrieved context에서 cover되는 비율"
+    fail_action: "벡터 인덱스 재구축 권고"
+
+  - name: faithfulness
+    threshold: 0.80
+    weight: 0.30
+    description: "answer의 claim이 retrieved context에서 inferable한 비율"
+    fail_action: "T265 redact_llm_output 게이트 강화 권고"
+
+  - name: answer_relevancy
+    threshold: 0.75
+    weight: 0.20
+    description: "question에 대한 answer의 직접 관련성"
+
+# Judge model (RAGAS LLM-as-judge)
+judge:
+  provider: azure_openai
+  model: gpt-4-1106-preview
+  endpoint_env: AZURE_OPENAI_ENDPOINT
+  api_key_env: AZURE_OPENAI_API_KEY
+  deployment: gpt-4-eval
+  temperature: 0.0
+  n_self_consistency: 3   # N=3 sampling, majority vote
+  timeout_sec: 30
+  retries: 2
+
+# Embedding model (RAGAS context_precision / context_recall)
+embeddings:
+  provider: azure_openai
+  model: text-embedding-3-small
+  deployment: text-embedding-3-small-eval
+
+# Output
+output:
+  results_dir: audit-out/llm/ragas/
+  summary_csv: audit-out/llm/ragas-summary.csv
+  per_row_jsonl: audit-out/llm/ragas-per-row.jsonl
+  artefact_sha256_manifest: audit-out/llm/ragas-sha256.txt
+
+# Caveats (LLM-as-evaluator-limitation memory 정합)
+caveats:
+  - "RAGAS faithfulness가 통과해도 production hallucination 위험은 잔존 — services/ai/injection_detector.py 룰베이스와 짝으로 운영"
+  - "synthetic ground truth는 실제 PB 상담 데이터가 아님 — Stage 4 production replay로 보강 필요"
+  - "judge gpt-4도 LLM proxy — 절대 점수보다 추세 변화에 가중치"
+
+# Cost estimate
+cost_estimate:
+  input_tokens_per_row: 1500
+  rows: 100
+  total_input_tokens: 150000
+  judge_calls_per_row: 4_metrics_x_3_sampling
+  total_judge_calls: 1200
+  estimated_usd: 1.20

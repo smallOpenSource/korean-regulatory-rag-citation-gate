@@ -1,0 +1,175 @@
+# WMAH Audit Stage 2 Lane 3 — Agent x Metric Matrix
+# 7 LLM-using agents x 4 metrics = 28 evaluation cells
+#
+# Agents (T265-marker):
+#   - email_draft           (apps/api/harness/services/email_draft.py)
+#   - consultation_briefing (apps/api/harness/services/consultation_briefing.py)
+#   - nba_script            (apps/api/harness/services/nba_script.py)
+#   - portfolio_analysis    (apps/api/harness/services/portfolio_analysis.py)
+#   - house_view            (apps/api/harness/services/house_view.py)
+#   - compliance_check      (apps/api/harness/services/compliance_check.py)
+#   - rag_qa                (RAG QA pattern across services/ai/faithfulness.py)
+#
+# Thresholds calibrated under LLM-as-evaluator-limitation memory:
+#   gpt-5.5 panel substitution showed 80%+ false-positive rate in BFS pass.
+#   Therefore: thresholds intentionally loose (faithfulness >= 0.80,
+#   hallucination <= 0.20) with N=3 self-consistency sampling required.
+
+version: 1
+schema: wmah-llm-agent-metrics/v1
+generated_at: "2026-05-21"
+caveats:
+  - "LLM-as-judge proxy is upper-bound estimate; production should pair with rule-based detectors (services/ai/injection_detector.py)."
+  - "Korean PB/WM domain prompts ONLY; English direct translations are rejected at probe-load time."
+  - "Threshold mapping: see eval/llm/deepeval-config.yaml & ragas-config.yaml."
+
+# 7 x 4 = 28 cells
+metrics:
+  # --- email_draft --------------------------------------------------------
+  - agent_id: email_draft
+    metric_name: faithfulness
+    threshold: 0.80
+    evaluator: deepeval
+    rationale: "PB→고객 이메일은 portfolio_snapshot SoT 정합 필요"
+  - agent_id: email_draft
+    metric_name: answer_relevancy
+    threshold: 0.75
+    evaluator: deepeval
+    rationale: "고객 의도(질의/불만/리포트요청)와 본문 정합"
+  - agent_id: email_draft
+    metric_name: hallucination
+    threshold: 0.20
+    evaluator: deepeval
+    rationale: "수치(평가액·수익률)·계좌번호 환각 금지"
+  - agent_id: email_draft
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+    rationale: "고객 응대 어조 검증"
+
+  # --- consultation_briefing --------------------------------------------
+  - agent_id: consultation_briefing
+    metric_name: faithfulness
+    threshold: 0.80
+    evaluator: deepeval
+    rationale: "상담 브리핑은 last_meeting_note + portfolio_state 정합"
+  - agent_id: consultation_briefing
+    metric_name: answer_relevancy
+    threshold: 0.75
+    evaluator: deepeval
+    rationale: "고객 관심 주제(은퇴/세무/상속) 반영 여부"
+  - agent_id: consultation_briefing
+    metric_name: hallucination
+    threshold: 0.15
+    evaluator: deepeval
+    rationale: "이전 상담 발언 위조 금지 — 가장 strict"
+  - agent_id: consultation_briefing
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+
+  # --- nba_script -------------------------------------------------------
+  - agent_id: nba_script
+    metric_name: faithfulness
+    threshold: 0.80
+    evaluator: deepeval
+    rationale: "NBA(Next Best Action) 스크립트는 product_catalog + suitability 정합"
+  - agent_id: nba_script
+    metric_name: answer_relevancy
+    threshold: 0.75
+    evaluator: deepeval
+  - agent_id: nba_script
+    metric_name: hallucination
+    threshold: 0.20
+    evaluator: deepeval
+    rationale: "허위 상품/수익률 약속 금지 (자본시장법 위반)"
+  - agent_id: nba_script
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+
+  # --- portfolio_analysis -----------------------------------------------
+  - agent_id: portfolio_analysis
+    metric_name: faithfulness
+    threshold: 0.85
+    evaluator: deepeval
+    rationale: "수치 분석은 holdings table SoT 직접 인용 — strict"
+  - agent_id: portfolio_analysis
+    metric_name: answer_relevancy
+    threshold: 0.75
+    evaluator: deepeval
+  - agent_id: portfolio_analysis
+    metric_name: hallucination
+    threshold: 0.10
+    evaluator: deepeval
+    rationale: "포지션·수익률 환각은 자문 책임 — 가장 strict"
+  - agent_id: portfolio_analysis
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+
+  # --- house_view -------------------------------------------------------
+  - agent_id: house_view
+    metric_name: faithfulness
+    threshold: 0.80
+    evaluator: deepeval
+    rationale: "하우스뷰는 macro_indicator + research_note SoT 정합"
+  - agent_id: house_view
+    metric_name: answer_relevancy
+    threshold: 0.70
+    evaluator: deepeval
+  - agent_id: house_view
+    metric_name: hallucination
+    threshold: 0.20
+    evaluator: deepeval
+  - agent_id: house_view
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+
+  # --- compliance_check -------------------------------------------------
+  - agent_id: compliance_check
+    metric_name: faithfulness
+    threshold: 0.90
+    evaluator: deepeval
+    rationale: "compliance 판정은 reg_clause 직접 인용 — 최고 strict"
+  - agent_id: compliance_check
+    metric_name: answer_relevancy
+    threshold: 0.80
+    evaluator: deepeval
+  - agent_id: compliance_check
+    metric_name: hallucination
+    threshold: 0.05
+    evaluator: deepeval
+    rationale: "법령 조문 환각은 즉시 차단 — 가장 strict cell"
+  - agent_id: compliance_check
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+
+  # --- rag_qa (RAGAS-evaluated) -----------------------------------------
+  - agent_id: rag_qa
+    metric_name: faithfulness
+    threshold: 0.80
+    evaluator: ragas
+    rationale: "retrieved context vs answer 정합 (RAGAS faithfulness)"
+  - agent_id: rag_qa
+    metric_name: answer_relevancy
+    threshold: 0.75
+    evaluator: ragas
+  - agent_id: rag_qa
+    metric_name: hallucination
+    threshold: 0.20
+    evaluator: ragas
+    rationale: "RAGAS faithfulness 보완용 — context-outside claim 검출"
+  - agent_id: rag_qa
+    metric_name: toxicity
+    threshold: 0.05
+    evaluator: deepeval
+    rationale: "RAGAS는 toxicity 미지원 — deepeval로 fallback"
+
+# Total cells (assert): 28
+assert:
+  total_cells: 28
+  agents: 7
+  metrics_per_agent: 4

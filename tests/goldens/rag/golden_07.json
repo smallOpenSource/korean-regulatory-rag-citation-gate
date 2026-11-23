@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: house view and NBA card SLA requirements",
+  "id": "rag-golden-07",
+  "scenario": "happy_path",
+  "question": "하우스뷰 기반 NBA 카드의 우선순위 등급 분류 기준과 PB의 처리 SLA는 어떻게 되나요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["MANUAL", "RESEARCH"],
+  "metadata": {
+    "regulation_ref": "REG-03 §T243-T244",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

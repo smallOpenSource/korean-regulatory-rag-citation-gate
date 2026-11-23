@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: KYC/EDD trigger conditions",
+  "id": "rag-golden-05",
+  "scenario": "happy_path",
+  "question": "강화된 고객확인(EDD) 절차가 발동되는 조건과 고위험 고객 기준은 무엇인가요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["REG_PAGE", "MANUAL"],
+  "metadata": {
+    "regulation_ref": "특금법 §5-2 고객확인의무",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

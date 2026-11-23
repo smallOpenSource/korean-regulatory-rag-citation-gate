@@ -1,0 +1,14 @@
+{
+  "_comment": "Adversarial: NO_CITATION — query matches no approved embedded chunks",
+  "id": "rag-golden-08",
+  "scenario": "adversarial_no_citation",
+  "question": "양자컴퓨팅 기반 포트폴리오 최적화 알고리즘의 구현 방법을 단계별로 설명해 주세요.",
+  "expected_faithfulness_min": null,
+  "expected_fail_closed_reason_code": "NO_CITATION",
+  "expected_source_types": [],
+  "metadata": {
+    "adversarial_type": "out_of_domain_query",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

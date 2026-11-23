@@ -1,0 +1,24 @@
+{
+  "_comment": "Golden JSON-schema regression for nba_script agent (REG-04 T261)",
+  "agent_id": "nba_script",
+  "required_keys": ["id", "customer_id", "priority_code", "status_code"],
+  "key_types": {
+    "id": "string",
+    "customer_id": "string",
+    "priority_code": "string",
+    "status_code": "string",
+    "due_at": ["string", "null"]
+  },
+  "value_constraints": {
+    "priority_code": {"allowed_values": ["HIGH", "MEDIUM", "LOW"]},
+    "status_code": {"allowed_values": ["PENDING", "IN_PROGRESS", "DONE", "DISMISSED"]}
+  },
+  "ai_output_required_keys": ["opening", "key_message", "product_discussion_angle", "closing"],
+  "ai_output_non_empty": ["opening", "key_message"],
+  "forbidden_keys": ["system_prompt", "raw_provider_response"],
+  "ai_badge_required": true,
+  "metadata": {
+    "task_id": "T261",
+    "ref": "REG-04 §3 nba_script governance checklist + LLM06 Excessive Agency prevention"
+  }
+}

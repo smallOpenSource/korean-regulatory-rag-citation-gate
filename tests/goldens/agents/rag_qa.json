@@ -1,0 +1,33 @@
+{
+  "_comment": "Golden JSON-schema regression for rag_qa agent (REG-04 T261)",
+  "agent_id": "rag_qa",
+  "required_keys": ["status_code", "answer", "citations"],
+  "key_types": {
+    "status_code": "string",
+    "answer": ["string", "null"],
+    "citations": "array"
+  },
+  "value_constraints": {
+    "status_code": {"allowed_values": ["READY", "BLOCKED"]},
+    "citations": {"min_length_if_ready": 1}
+  },
+  "blocked_response_required_keys": ["fail_closed_reason_code"],
+  "allowed_fail_closed_codes": [
+    "NO_CITATION",
+    "SOURCE_MISMATCH",
+    "EMPTY_SANITIZED_TEXT",
+    "UNSUPPORTED_FILTER",
+    "QUARANTINED_CONTEXT",
+    "DIMENSION_MISMATCH",
+    "LOW_FAITHFULNESS",
+    "PROMPT_INJECTION_DETECTED"
+  ],
+  "forbidden_keys": ["system_prompt", "raw_provider_response"],
+  "rag_answer_evidence_required": true,
+  "faithfulness_min_if_ready": 0.7,
+  "ai_badge_required": true,
+  "metadata": {
+    "task_id": "T261",
+    "ref": "REG-04 §4.2 Citation Gating + AI-04 citation enforcement"
+  }
+}

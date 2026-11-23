@@ -1,0 +1,95 @@
+{
+  "version": "wave5-screen-quality",
+  "description": "Korean copy allowlist for WMAH PoC E2E tests. Banned patterns must not appear in rendered page text; required strings must appear on the matching route. Paths and headings reconciled against App.tsx + access.ts. Screen-quality bans added per DEV-10 close-out.",
+
+  "banned_global": [
+    "URGENT NBA",
+    "NBA Inbox",
+    "Synthetic Portfolio",
+    "SYN-CUST",
+    "DATABASE_URL",
+    "JWT_SECRET",
+    "SERVICE_KEY",
+    "PASSWORD=",
+    "HarnessSynthetic"
+  ],
+
+  "banned_numbered_customer_pattern": "고객\\s*(?:0[1-9]|[12][0-9]|30)\\b",
+
+  "banned_raw_api_codes": [
+    "PROVIDER_DONE",
+    "OFFICIAL_KRX_APPROVED",
+    "DOMESTIC_TOP200_MARKET_CAP",
+    "PYKRX_AUXILIARY_APPROVED"
+  ],
+
+  "banned_raw_api_codes_audit_exempt": true,
+
+  "banned_pb_english_words": [
+    "evidence",
+    "persisted",
+    "snapshot",
+    "universe",
+    "denominator",
+    "staff display"
+  ],
+
+  "banned_pb_internal_identifier_regex": [
+    "ADR-[0-9]+",
+    "W[0-9]-T[0-9]+",
+    "REG-0[0-9]",
+    "AI-0[0-9]\\s*§",
+    "RUN-1[0-9]\\s*§"
+  ],
+
+  "banned_pb_test_fixture_regex": [
+    "GOLDEN_TEST",
+    "RALPH(?:-?QA)?",
+    "Synthetic boundary",
+    "golden regression test"
+  ],
+
+  "banned_pb_iso_microsecond_regex": "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]+",
+
+  "required_per_route": {
+    "/dashboard":            ["PB/WM 오늘의 업무 우선순위"],
+    "/customers":            ["고객 목록"],
+    "/nba":                  ["후속 조치 관리함"],
+    "/aftercare":            ["후속 조치"],
+    "/email-drafts":         ["이메일 초안"],
+    "/house-views":          ["하우스뷰 목록"],
+    "/rag":                  ["RAG 질의응답"],
+    "/batch":                ["배치 모니터링"],
+    "/audit":                ["감사 로그 조회"],
+    "/quarantine":           ["격리 대시보드"],
+    "/dispute-cases":        ["분쟁 조정 관리"],
+    "/rights-notice":        ["금융소비자 4대 권리 안내"],
+    "/audit-viewer":         ["감사 로그 조회"],
+    "/ai-model-cards":       ["AI 모델 카드"],
+    "/ai-policy":            ["AI 사용 정책"],
+    "/korean-ai-act":        ["인공지능기본법 대응 체크리스트"],
+    "/ai-admin-dashboard":   ["AI 운영현황 대시보드"]
+  },
+
+  "required_pb_visible_watermark": "합성 데이터",
+
+  "roles_per_route": {
+    "/dashboard":           ["PB", "WM", "BRANCH_MANAGER", "ADMIN", "AUDIT_VIEWER"],
+    "/customers":           ["PB", "WM", "BRANCH_MANAGER", "ADMIN"],
+    "/nba":                 ["PB", "WM"],
+    "/aftercare":           ["PB", "WM", "BRANCH_MANAGER", "ADMIN"],
+    "/email-drafts":        ["PB", "WM"],
+    "/house-views":         ["PB", "WM", "BRANCH_MANAGER", "ADMIN", "AUDIT_VIEWER"],
+    "/rag":                 ["PB", "WM", "BRANCH_MANAGER", "ADMIN"],
+    "/batch":               ["ADMIN"],
+    "/audit":               ["ADMIN", "AUDIT_VIEWER"],
+    "/audit-viewer":        ["ADMIN", "AUDIT_VIEWER"],
+    "/quarantine":          ["ADMIN"],
+    "/dispute-cases":       ["PB", "WM", "BRANCH_MANAGER", "ADMIN", "AUDIT_VIEWER"],
+    "/rights-notice":       ["PB", "WM", "BRANCH_MANAGER", "ADMIN"],
+    "/ai-model-cards":      ["PB", "WM", "BRANCH_MANAGER", "ADMIN", "AUDIT_VIEWER"],
+    "/ai-policy":           ["PB", "WM", "BRANCH_MANAGER", "ADMIN", "AUDIT_VIEWER"],
+    "/korean-ai-act":       ["PB", "WM", "BRANCH_MANAGER", "ADMIN", "AUDIT_VIEWER"],
+    "/ai-admin-dashboard":  ["ADMIN"]
+  }
+}

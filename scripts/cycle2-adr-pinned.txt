@@ -1,0 +1,9 @@
+# Pinned ADR commit hashes for Cycle 2 amendment integrity check.
+# Update after each amendment commit. 'skip' = no amendment needed for default path.
+ADR-003=skip
+ADR-005-section-1=skip
+ADR-005-section-3=skip
+ADR-005-section-5=skip
+ADR-007-section-2=skip
+ADR-007-section-4=skip
+V041=skip

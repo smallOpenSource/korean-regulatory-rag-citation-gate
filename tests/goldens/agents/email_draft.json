@@ -1,0 +1,25 @@
+{
+  "_comment": "Golden JSON-schema regression for email_draft agent (REG-04 T261)",
+  "agent_id": "email_draft",
+  "required_keys": ["draft_id", "customer_id", "status_code", "subject", "body", "ai_output_id"],
+  "key_types": {
+    "draft_id": "string",
+    "customer_id": "string",
+    "status_code": "string",
+    "subject": "string",
+    "body": "string",
+    "ai_output_id": ["string", "null"]
+  },
+  "value_constraints": {
+    "status_code": {"allowed_values": ["DRAFT", "APPROVED", "SENT", "FAILED"]},
+    "subject": {"min_length": 2},
+    "body": {"min_length": 10}
+  },
+  "pii_forbidden_in_body": true,
+  "forbidden_keys": ["system_prompt", "raw_provider_response", "smtp_password"],
+  "ai_badge_required": false,
+  "metadata": {
+    "task_id": "T261",
+    "ref": "REG-04 §3 email_draft governance checklist + AI-03 PII regex + AI-05 draft=unsaved"
+  }
+}

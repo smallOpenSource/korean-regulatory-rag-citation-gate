@@ -1,0 +1,45 @@
+{
+  "_schema": {
+    "version": 1,
+    "purpose": "Per-route anchor element selectors for BFS auth race mitigation.",
+    "rule": "[[bfs-auth-race-window]] — networkidle + 700ms is insufficient on 8/112 cells (Step 1 baseline). After page.goto and login_redirect retry, wait for `window.__wmahAuth?.getAccessToken()` truthy (auth restore complete via refresh cookie) AND for the per-route anchor selector. Wait timeout each: 6000ms.",
+    "format": {
+      "slug": "from audit_v1_ui_matrix.ROUTES",
+      "anchor": "Playwright locator string; first matching element decides page is rendered",
+      "fallback": "If anchor selector times out, fall back to `<main>` (always present once Layout renders) before declaring failure"
+    },
+    "fallback_selector": "main",
+    "auth_token_poll_ms": 6000,
+    "anchor_poll_ms": 6000
+  },
+  "routes": {
+    "dashboard": "h1:has-text(\"PB/WM 오늘의 업무 우선순위\")",
+    "customers": "h2:has-text(\"고객 목록\")",
+    "customer-360": "h2:has-text(\"AI 브리핑 패널\")",
+    "consultation": "main",
+    "nba": "h1:has-text(\"NBA 인박스\")",
+    "aftercare": "h1:has-text(\"후속 조치\")",
+    "email-drafts": "h1:has-text(\"이메일 초안\")",
+    "house-views": "h2:has-text(\"하우스뷰 목록\")",
+    "house-view-detail": "main",
+    "house-view-activate": "main",
+    "rag": "h1:has-text(\"RAG Q\")",
+    "batch": "h2:has-text(\"배치 모니터링\")",
+    "audit": "h2:has-text(\"감사 로그 조회\")",
+    "quarantine": "h1:has-text(\"격리 대시보드\")",
+    "audit-viewer": "h1:has-text(\"감사 로그 열람\")",
+    "rights-notice": "h1:has-text(\"금융소비자 4대 권리 안내\")",
+    "dispute-cases": "h1:has-text(\"분쟁 조정 관리\")",
+    "conflict-of-interest": "h1:has-text(\"Conflict of Interest\")",
+    "marketing-review": "h1:has-text(\"Marketing Review\")",
+    "data-governance": "h1:has-text(\"개인정보·신용정보 거버넌스\")",
+    "consents": "h1:has-text(\"개인·신용정보 동의 관리\")",
+    "kyc-edd": "h1:has-text(\"강화된 고객확인 (EDD)\")",
+    "ai-model-cards": "h1:has-text(\"AI 모델 카드\")",
+    "ai-policy": "h1:has-text(\"AI 사용 정책\")",
+    "korean-ai-act": "h1:has-text(\"인공지능기본법 대응 체크리스트\")",
+    "ai-admin-dashboard": "h1:has-text(\"AI 운영현황 대시보드\")",
+    "autopilot-demo": "h1:has-text(\"자율 시연\")",
+    "wildcard-fallback": "h1:has-text(\"PB/WM 오늘의 업무 우선순위\")"
+  }
+}

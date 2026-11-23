@@ -1,0 +1,1785 @@
+openapi: "3.1.0"
+info:
+  title: Harness Internal API
+  version: "0.1.0"
+  description: >-
+    Implemented API contract only. email draft/send is current for row-scoped draft
+    creation and provider-gated send. Full RAG generation and WebSocket push remain
+    backlog/not-current-contract until implemented with real provider, RBAC, audit,
+    and UI evidence. The WebSocket transport contract is maintained separately in
+    API-02 and indexed by API-03 because OpenAPI covers HTTP routes only.
+
+paths:
+  /ws:
+    x-websocket: true
+    description: >-
+      JWT access-token WebSocket transport. Detailed event payloads and RBAC filtering rules are
+      documented in API-02; this OpenAPI file indexes the path only because WebSocket is not an
+      HTTP method surface.
+
+  /health:
+    get:
+      summary: API 프로세스 생존 확인
+      responses:
+        "200":
+          description: status ok + service name
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /health/config:
+    get:
+      summary: 비밀값이 제거된 런타임 설정 확인
+      responses:
+        "200":
+          description: status ok + sanitized config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigHealthResponse"
+
+  /auth/login:
+    post:
+      summary: 직원 로그인
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: access_token JSON + HttpOnly refresh cookie + employee metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+
+  /auth/refresh:
+    post:
+      summary: Bearer refresh token 또는 HttpOnly refresh cookie 기반 세션 복구
+      responses:
+        "200":
+          description: new access_token + employee metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RefreshResponse"
+        "401":
+          description: refresh Bearer token or refresh cookie required
+
+  /auth/logout:
+    post:
+      summary: HttpOnly refresh cookie 삭제
+      responses:
+        "200":
+          description: refresh cookie cleared with matching name/path/SameSite/Secure attributes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogoutResponse"
+
+  /ai-outputs/{output_id}:
+    get:
+      summary: AI 생성 결과 metadata/detail 조회
+      parameters:
+        - $ref: "#/components/parameters/OutputId"
+      responses:
+        "200":
+          description: output_json + generated_at + model_name + citations_json
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiOutput"
+        "404":
+          description: output not found or outside role scope
+
+  /ai-jobs/{job_id}:
+    get:
+      summary: 비동기 AI job 상태 조회
+      parameters:
+        - $ref: "#/components/parameters/JobId"
+      responses:
+        "200":
+          description: job status, result resource link, redacted error if failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiJob"
+        "404":
+          description: job not found or outside role scope
+
+  /dashboard:
+    get:
+      summary: 권한별 업무 대시보드 지표 조회
+      responses:
+        "200":
+          description: role-scoped dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+        "401":
+          description: Bearer token required
+
+  /customers:
+    get:
+      summary: 고객 목록 조회; AUDIT_VIEWER 제외, 역할별 row scope 적용
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: risk_grade_code, in: query, schema: {type: string}}
+        - {name: segment_code, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 20, minimum: 1, maximum: 100}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        "200":
+          description: customer list envelope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListEnvelope"
+        "403":
+          description: customer access role required
+
+  /customers/{customer_id}:
+    get:
+      summary: Customer 360 전체 현황; 역할별 row scope + audit log
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: nested customer detail with portfolios/holdings/NBA/aftercare
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer360Response"
+        "403":
+          description: customer access role required
+        "404":
+          description: not found or outside row scope
+        "422":
+          description: invalid UUID path parameter
+
+  /customers/{customer_id}/portfolio-analysis:
+    post:
+      summary: portfolio_analysis durable AI job 생성; AUDIT_VIEWER 제외
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "202":
+          description: job_id + status_code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAcceptedResponse"
+        "403":
+          description: customer access role required
+        "404":
+          description: customer not found or outside row scope
+
+  /products:
+    get:
+      summary: 상품 목록 조회
+      parameters:
+        - {name: product_type_code, in: query, schema: {type: string}}
+        - {name: risk_level_code, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 50, minimum: 1, maximum: 100}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        "200":
+          description: product list envelope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductListEnvelope"
+
+  /consultations:
+    post:
+      summary: 상담 생성; PB/WM 전용, customer_id UUID 검증
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsultationCreateRequest"
+      responses:
+        "201":
+          description: consultation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Consultation"
+        "403":
+          description: PB/WM role required
+        "422":
+          description: invalid UUID body field
+
+  /consultations/{consultation_id}:
+    patch:
+      summary: 상담 업데이트; PB/WM 전용, completion gates 적용
+      parameters:
+        - $ref: "#/components/parameters/ConsultationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ConsultationPatchRequest"
+      responses:
+        "200":
+          description: updated consultation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Consultation"
+        "403":
+          description: PB/WM role required
+        "404":
+          description: consultation not found or outside row scope
+
+  /consultations/{consultation_id}/briefing:
+    post:
+      summary: consultation_briefing durable AI job 생성; PB/WM 전용
+      parameters:
+        - $ref: "#/components/parameters/ConsultationId"
+      responses:
+        "202":
+          description: job_id + status_code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAcceptedResponse"
+        "403":
+          description: PB/WM role required
+
+  /consultations/{consultation_id}/compliance-check:
+    post:
+      summary: compliance_check fail-closed output 생성; PB/WM 전용
+      parameters:
+        - $ref: "#/components/parameters/ConsultationId"
+      responses:
+        "200":
+          description: passed false + blocked issue metadata when provider unavailable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ComplianceCheckResponse"
+        "403":
+          description: PB/WM role required
+
+  /email-drafts:
+    get:
+      summary: 이메일 초안 목록 조회 (PB/WM scoped); ADMIN/AUDIT_VIEWER 는 전체 표시
+      parameters:
+        - in: query
+          name: status_code
+          required: false
+          schema:
+            type: string
+            enum: [DRAFT, PENDING_APPROVAL, APPROVED, SENT, FAILED]
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        "200":
+          description: 이메일 초안 목록 (PB/WM 본인 고객 범위; ADMIN 전체)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EmailDraft"
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        "403":
+          description: PB/WM/ADMIN/AUDIT_VIEWER role required
+    post:
+      summary: 이메일 초안 생성; PB/WM 전용, customer/consultation row scope 적용
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EmailDraftCreateRequest"
+      responses:
+        "201":
+          description: DRAFT email row created; no SMTP send occurs on creation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailDraft"
+        "403":
+          description: PB/WM role required
+        "404":
+          description: customer or consultation not found or outside row scope
+        "422":
+          description: customer_id or consultation_id UUID required
+
+  /email-drafts/{draft_id}/send:
+    post:
+      summary: APPROVED 이메일 초안 SMTP 발송; PB/WM 전용, provider-gated fail-closed
+      parameters:
+        - $ref: "#/components/parameters/DraftId"
+      responses:
+        "200":
+          description: real SMTP delivery succeeded, draft marked SENT, audit appended
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailSendResponse"
+        "403":
+          description: PB/WM role required
+        "404":
+          description: email draft not found or outside row scope
+        "409":
+          description: draft is not APPROVED
+        "503":
+          description: SMTP send disabled or missing configured provider credentials; status unchanged
+
+  /house-views:
+    get:
+      summary: house view 목록 조회
+      parameters:
+        - {name: status_code, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 20, minimum: 1, maximum: 100}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        "200":
+          description: house view list envelope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseViewListEnvelope"
+    post:
+      summary: house view 생성; ADMIN 전용
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HouseViewCreateRequest"
+      responses:
+        "201":
+          description: created DRAFT house view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseView"
+        "403":
+          description: ADMIN role required
+
+  /house-views/{house_view_id}:
+    get:
+      summary: house view 상세 조회
+      parameters:
+        - $ref: "#/components/parameters/HouseViewId"
+      responses:
+        "200":
+          description: house view detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseView"
+        "404":
+          description: house view not found
+        "422":
+          description: invalid UUID path parameter
+
+  /house-views/{house_view_id}/generate:
+    post:
+      summary: house_view_generation durable AI job 생성; ADMIN 전용
+      parameters:
+        - $ref: "#/components/parameters/HouseViewId"
+      responses:
+        "202":
+          description: job_id + status_code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobAcceptedResponse"
+        "403":
+          description: ADMIN role required
+        "404":
+          description: house view not found
+
+  /house-views/{house_view_id}/activate:
+    post:
+      summary: 대상 검증 후 단일 ACTIVE 전환; ADMIN 전용, audit log 필수
+      parameters:
+        - $ref: "#/components/parameters/HouseViewId"
+      responses:
+        "200":
+          description: activated house view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HouseView"
+        "403":
+          description: ADMIN role required
+        "404":
+          description: activatable house view not found
+
+  /nba-actions:
+    get:
+      summary: NBA 목록; 운영 직원 역할별 row scope 적용, AUDIT_VIEWER 제외
+      parameters:
+        - {name: status_code, in: query, schema: {type: string}}
+        - {name: priority_code, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 50, minimum: 1, maximum: 100}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        "200":
+          description: NBA action list envelope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NbaActionListEnvelope"
+        "403":
+          description: NBA staff role required
+
+  /nba-actions/{nba_id}/status:
+    patch:
+      summary: NBA 상태 변경; PB/WM 전용
+      parameters:
+        - $ref: "#/components/parameters/NbaId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NbaStatusPatchRequest"
+      responses:
+        "200":
+          description: updated NBA action
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NbaAction"
+        "403":
+          description: PB/WM role required
+        "404":
+          description: not found or outside row scope
+
+  /aftercare-events/{event_id}/resolve:
+    post:
+      summary: 사후관리 이벤트 해결 처리; PB/WM 전용
+      parameters:
+        - $ref: "#/components/parameters/EventId"
+      responses:
+        "200":
+          description: resolved aftercare event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AftercareEvent"
+        "403":
+          description: PB/WM role required
+
+  /rag/query:
+    post:
+      summary: RAG Q&A citation-gated endpoint; cited chunks 없으면 BLOCKED
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RagQueryRequest"
+      responses:
+        "200":
+          description: cited extractive answer or blocked response with AI output metadata and readiness
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RagQueryResponse"
+        "403":
+          description: staff AI role required
+
+  /rag/qa:
+    post:
+      summary: |
+        RAG Q&A alias of /rag/query per ADR-005 dual-LLM contract (Wave 2 T19).
+        Adds prompt-injection pre-check via INJECTION_PATTERNS.yaml; on detection,
+        fail-closes with `fail_closed_reason_code=PROMPT_INJECTION_DETECTED` and
+        `ai_injection_detected` audit. Body/response schemas identical to /rag/query.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RagQueryRequest"
+      responses:
+        "200":
+          description: cited extractive answer or blocked response with fail_closed_reason_code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RagQueryResponse"
+        "403":
+          description: staff AI role required
+
+  /recommendation-simulations:
+    post:
+      summary: 직원 화면 추천 시뮬레이션 생성 및 4-gate 평가; PB/WM 전용
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecommendationSimulationRequest"
+      responses:
+        "201":
+          description: APPROVED or BLOCKED simulation with gate_detail_json
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RecommendationSimulation"
+        "403":
+          description: PB/WM role required
+
+  /order-simulations:
+    post:
+      summary: 주문 시뮬레이션 생성; PB/WM 전용, 실제 주문 전송 없음
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderSimulationRequest"
+      responses:
+        "201":
+          description: PENDING_APPROVAL/BLOCKED order simulation (second-person 4-eye approval required before execute)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderSimulation"
+        "403":
+          description: PB/WM role required
+
+  /order-simulations/{order_simulation_id}/execute-simulated:
+    post:
+      summary: 승인된 주문 시뮬레이션을 SIMULATED_EXECUTED로 전환; PB/WM 전용
+      parameters:
+        - $ref: "#/components/parameters/OrderSimulationId"
+      responses:
+        "200":
+          description: simulated execution recorded; no external order API call
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderSimulation"
+        "403":
+          description: PB/WM role required
+
+  /order-simulations/{order_simulation_id}/approve:
+    post:
+      summary: PENDING_APPROVAL 주문 시뮬레이션 supervisory 4-eye 승인; BRANCH_MANAGER 전용, 승인자 ≠ 작성자 (REG-03 §3)
+      parameters:
+        - $ref: "#/components/parameters/OrderSimulationId"
+      responses:
+        "200":
+          description: order simulation APPROVED by a distinct BRANCH_MANAGER
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OrderSimulation"
+        "403":
+          description: BRANCH_MANAGER role required (role_forbidden), or self-approval blocked (four_eyes_violation_blocked)
+        "404":
+          description: order simulation not found
+        "409":
+          description: order simulation not in PENDING_APPROVAL state
+
+  /batch/status:
+    get:
+      summary: 배치 작업 최근 이력 조회; ADMIN 전용
+      parameters:
+        - {name: status_code, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, default: 50, minimum: 1, maximum: 100}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        "200":
+          description: items + limit + offset for batch_job_logs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchStatusEnvelope"
+        "403":
+          description: ADMIN role required
+
+  /data/readiness:
+    get:
+      summary: API/Web/E2E 데이터 준비 상태 조회
+      responses:
+        "200":
+          description: status_code, checks, rag readiness, market_data, batch_status_summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DataReadiness"
+
+  /document-chunks:
+    get:
+      summary: 격리(quarantine) 문서 청크 조회 (REG-04 W4-T2 Quarantine dashboard); ADMIN 전용
+      parameters:
+        - name: quarantine_flag
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: list of quarantined document chunks with quarantine_pattern_code + quarantine_score
+        "403":
+          description: ADMIN role required
+
+  /document-chunks/{chunk_id}/release:
+    post:
+      summary: 격리 해제 (audit `quarantine_released` 기록); ADMIN 전용
+      parameters:
+        - name: chunk_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: chunk released; quarantine_flag set to false + audit row inserted
+        "403":
+          description: ADMIN role required
+        "404":
+          description: chunk not found
+
+  /audit-logs:
+    get:
+      summary: 감사로그 조회; ADMIN/AUDIT_VIEWER 전용
+      parameters:
+        - {name: actor_id, in: query, schema: {type: string, format: uuid}}
+        - {name: action_code, in: query, schema: {type: string}}
+        - {name: from_date, in: query, schema: {type: string, format: date}}
+        - {name: to_date, in: query, schema: {type: string, format: date}}
+        - {name: limit, in: query, schema: {type: integer, default: 100, minimum: 1, maximum: 200}}
+        - {name: offset, in: query, schema: {type: integer, default: 0, minimum: 0}}
+      responses:
+        "200":
+          description: audit log list envelope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditLogEnvelope"
+        "403":
+          description: audit viewer role required
+
+  # ── T16 House view lifecycle (V035) ────────────────────────────────────────
+
+  /house-views/{house_view_id}/generate-content:
+    post:
+      summary: Azure GPT5로 하우스뷰 콘텐츠 생성; DRAFT → GENERATED (T16)
+      responses:
+        "202": {description: generation accepted and GENERATED state set}
+        "403": {description: ADMIN role required}
+        "404": {description: house view not found}
+        "409": {description: not in DRAFT status}
+
+  /house-views/{house_view_id}/review:
+    post:
+      summary: 하우스뷰 검토 승인; GENERATED → REVIEWED (T16)
+      responses:
+        "200": {description: house view advanced to REVIEWED}
+        "403": {description: ADMIN role required}
+        "404": {description: house view not found or not in GENERATED status}
+
+  /house-views/{house_view_id}/activate-lifecycle:
+    post:
+      summary: 하우스뷰 활성화; REVIEWED → ACTIVATED — market tuple 유일성 보장 (T16)
+      responses:
+        "200": {description: house view ACTIVATED, previous ACTIVATED ARCHIVED}
+        "403": {description: ADMIN role required}
+        "404": {description: house view not found or not in REVIEWED status}
+
+  # ── T17/T243 NBA cards (V036) ───────────────────────────────────────────────
+
+  /nba-cards:
+    post:
+      summary: NBA 카드 생성 (P1/P2/P3 우선순위 + SLA 타이머) (T17, T243)
+      responses:
+        "201": {description: NBA card created}
+        "400": {description: customer.id required}
+        "403": {description: PB/WM role required}
+
+  /nba-cards/{nba_id}/acknowledge:
+    post:
+      summary: NBA 카드 인지 처리; PENDING → IN_PROGRESS
+      responses:
+        "200": {description: card acknowledged}
+        "403": {description: PB/WM role required}
+        "404": {description: card not found or not PENDING}
+
+  /nba-cards/{nba_id}/complete:
+    post:
+      summary: NBA 카드 완료; → DONE
+      responses:
+        "200": {description: card completed}
+        "403": {description: PB/WM role required}
+        "404": {description: card not found}
+
+  /nba-cards/{nba_id}/dismiss:
+    post:
+      summary: NBA 카드 거절; → DISMISSED
+      responses:
+        "200": {description: card dismissed}
+        "403": {description: PB/WM role required}
+        "404": {description: card not found}
+
+  # ── T244/T257 Aftercare quarterly (V036) ────────────────────────────────────
+
+  /aftercare/quarterly:
+    get:
+      summary: 분기별 사후관리 대상 목록 조회 (T244)
+      parameters:
+        - {name: quarter, in: query, required: true, schema: {type: string}, description: "YYYYQN 형식 (예: 2025Q2)"}
+      responses:
+        "200": {description: aftercare queue for the quarter}
+        "403": {description: staff role required}
+
+  /aftercare-events/{event_id}/complete:
+    post:
+      summary: 사후관리 이벤트 완료 처리 (T244); 선택적 이메일 초안 생성 (T257)
+      responses:
+        "200": {description: event COMPLETED; email_draft_payload included if requested}
+        "403": {description: PB/WM role required}
+        "404": {description: event not found}
+
+  /aftercare-events/{event_id}/skip:
+    post:
+      summary: 사후관리 이벤트 건너뛰기; → SKIPPED
+      responses:
+        "200": {description: event SKIPPED}
+        "403": {description: PB/WM role required}
+        "404": {description: event not found}
+
+  # ── T248 KYC/EDD triggers (V029) ────────────────────────────────────────────
+
+  /kyc-edd/triggers:
+    get:
+      summary: KYC/EDD 트리거 목록 조회 (T248)
+      parameters:
+        - {name: customer_id, in: query, schema: {type: string, format: uuid}}
+        - {name: status, in: query, schema: {type: string, enum: [OPEN, IN_PROGRESS, CLOSED]}}
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        "200": {description: trigger list}
+        "403": {description: compliance role required}
+
+  /kyc-edd/triggers/{trigger_id}:
+    get:
+      summary: KYC/EDD 트리거 단건 조회
+      responses:
+        "200": {description: trigger detail}
+        "403": {description: compliance role required}
+        "404": {description: trigger not found}
+
+  /kyc-edd/evaluate:
+    post:
+      summary: KYC/EDD 룰북 평가 및 트리거 생성 (T248)
+      responses:
+        "201": {description: fired triggers created}
+        "400": {description: customer.id required}
+        "403": {description: compliance role required}
+
+  /kyc-edd/triggers/{trigger_id}/reassess:
+    post:
+      summary: KYC/EDD 재심사 시작; OPEN → IN_PROGRESS
+      responses:
+        "200": {description: trigger IN_PROGRESS}
+        "400": {description: reason_text required}
+        "403": {description: compliance role required}
+        "404": {description: trigger not found or not OPEN}
+
+  /kyc-edd/triggers/{trigger_id}/complete:
+    post:
+      summary: KYC/EDD 재심사 완료; → CLOSED
+      responses:
+        "200": {description: trigger CLOSED}
+        "403": {description: compliance role required}
+        "404": {description: trigger not found}
+
+  # ── T249 Conflict of interest (V030) ────────────────────────────────────────
+
+  /conflict-disclosures:
+    get:
+      summary: 이해상충 사전신고 목록 조회 (T249)
+      parameters:
+        - {name: employee_id, in: query, schema: {type: string, format: uuid}}
+        - {name: customer_id, in: query, schema: {type: string, format: uuid}}
+        - {name: wall_violations_only, in: query, schema: {type: boolean, default: false}}
+        - {name: limit, in: query, schema: {type: integer, default: 50}}
+        - {name: offset, in: query, schema: {type: integer, default: 0}}
+      responses:
+        "200": {description: disclosure list}
+        "403": {description: compliance role required}
+    post:
+      summary: 이해상충 사전신고 생성 (T249); chinese_wall_violation=true 시 거래 차단
+      responses:
+        "201": {description: disclosure created; block_banner if violated}
+        "400": {description: validation error}
+        "403": {description: staff role required}
+
+  /conflict-disclosures/{disclosure_id}:
+    get:
+      summary: 이해상충 사전신고 단건 조회
+      responses:
+        "200": {description: disclosure detail}
+        "403": {description: compliance role required}
+        "404": {description: disclosure not found}
+
+  /conflict-disclosures/check:
+    get:
+      summary: 중국 장벽(Chinese Wall) 차단 여부 확인; 상담 전 게이트
+      parameters:
+        - {name: customer_id, in: query, required: true, schema: {type: string, format: uuid}}
+        - {name: product_id, in: query, schema: {type: string, format: uuid}}
+      responses:
+        "200": {description: "{blocked: bool, message: string|null}"}
+        "400": {description: customer_id required}
+        "403": {description: auth required}
+
+  # ── T214-T217 Consents (V027) ────────────────────────────────────────────────
+
+  /consents/grant:
+    post:
+      summary: 동의 항목 기록 (T214)
+      responses:
+        "201": {description: consent recorded}
+        "403": {description: staff role required}
+
+  /consents/withdraw:
+    post:
+      summary: 동의 철회 (T217)
+      responses:
+        "200": {description: consent withdrawn}
+        "403": {description: staff role required}
+
+  /consents/marketing/stop:
+    post:
+      summary: 마케팅 연락 중지 (T216)
+      responses:
+        "200": {description: marketing consent withdrawn}
+        "403": {description: staff role required}
+
+  /consents/general-bundle:
+    post:
+      summary: 일반 묶음 동의 기록 (T214)
+      responses:
+        "201": {description: bundle consent recorded}
+        "403": {description: staff role required}
+
+  /consents/customer/{customer_id}:
+    get:
+      summary: 고객 동의 항목 조회
+      responses:
+        "200": {description: consent list}
+        "403": {description: staff role required}
+
+  /info-access-requests:
+    post:
+      summary: 정보 열람·정정 요청 (T215)
+      responses:
+        "201": {description: request created}
+        "403": {description: staff role required}
+
+  /info-access-requests/{request_id}/respond:
+    post:
+      summary: 정보 열람·정정 요청 응답 (T215)
+      responses:
+        "200": {description: request responded}
+        "403": {description: staff role required}
+        "404": {description: request not found}
+
+  # ── T220/T222/T223 Consultation extensions ──────────────────────────────────
+
+  /consultations/{consultation_id}/suitability:
+    post:
+      summary: 적합성 6요소 평가 (T220, V023)
+      responses:
+        "200": {description: suitability result}
+        "403": {description: staff role required}
+        "404": {description: consultation not found}
+
+  /consultations/{consultation_id}/suitability/form-options:
+    get:
+      summary: 적합성 평가 폼 옵션 조회
+      responses:
+        "200": {description: form options}
+        "403": {description: staff role required}
+
+  /consultations/{consultation_id}/appropriateness-acknowledge:
+    post:
+      summary: 적정성 경고 인지 (T203, V023)
+      responses:
+        "200": {description: acknowledged}
+        "403": {description: staff role required}
+
+  /consultations/{consultation_id}/explanation-checklist:
+    get:
+      summary: 설명 의무 체크리스트 조회 (T222, V023)
+      responses:
+        "200": {description: checklist}
+        "403": {description: staff role required}
+
+  /consultations/{consultation_id}/explanation-confirm:
+    post:
+      summary: 설명 의무 확인 완료 (T222, V023)
+      responses:
+        "200": {description: explanation confirmed}
+        "403": {description: staff role required}
+
+  /consultations/{consultation_id}/four-gate:
+    get:
+      summary: 4대 게이트 확인 상태 조회 (T242, V023)
+      responses:
+        "200": {description: four-gate status}
+        "403": {description: staff role required}
+
+  /consultations/{consultation_id}/four-gate/{gate_name}/acknowledge:
+    post:
+      summary: 4대 게이트 개별 확인 (T242, V023)
+      responses:
+        "200": {description: gate acknowledged}
+        "403": {description: staff role required}
+
+  /consultations/{consultation_id}/unfair-solicitation-check:
+    post:
+      summary: 부당권유 규칙 검사 게이트 (T223, REG-02)
+      responses:
+        "200": {description: unfair solicitation gate result}
+        "403": {description: staff role required}
+        "404": {description: consultation not found}
+
+  # ── T224/T247 Email draft extensions ────────────────────────────────────────
+
+  # Wave-Audit-Defect-Fix B4: role descriptions aligned with the actual
+  # require_email_staff implementation at routers/email.py:44-47 (PB/WM
+  # only). The four-eye rule (a reviewer cannot approve their own draft)
+  # is enforced via author equality, not via a role split — the legacy
+  # "ADMIN/WM role required" text on approve/reject was YAML drift.
+  /email-drafts/{draft_id}/submit:
+    post:
+      summary: 이메일 초안 심의 제출 (T224, T247)
+      responses:
+        "200": {description: draft submitted for review}
+        "403": {description: PB/WM role required}
+        "404": {description: draft not found}
+
+  /email-drafts/{draft_id}/approve:
+    post:
+      summary: 이메일 초안 심의 승인 (T247)
+      responses:
+        "200": {description: draft approved}
+        "403": {description: PB/WM role required (different author for four-eye)}
+        "404": {description: draft not found}
+
+  /email-drafts/{draft_id}/reject:
+    post:
+      summary: 이메일 초안 심의 반려 (T247)
+      responses:
+        "200": {description: draft rejected}
+        "403": {description: PB/WM role required (different author for four-eye)}
+        "404": {description: draft not found}
+
+  # ── T225/T226 Rights notice + Disputes ──────────────────────────────────────
+
+  /rights-notice:
+    get:
+      summary: 권리 고지 목록 조회
+      responses:
+        "200": {description: rights notice list}
+        "403": {description: staff role required}
+    post:
+      summary: 권리 고지 발행 (T225, REG-02)
+      responses:
+        "201": {description: notice issued}
+        "403": {description: staff role required}
+
+  /rights-notice/acknowledge:
+    post:
+      summary: 권리 고지 수령 확인 (REG-01 T225 / C6)
+      responses:
+        "202": {description: acknowledgement recorded; rights_notice_acknowledged audit emitted (V058)}
+        "403": {description: PB/WM role required}
+        "404": {description: notice not found or already acknowledged}
+
+  /disputes:
+    get:
+      summary: 분쟁 사례 목록 조회
+      responses:
+        "200": {description: dispute list}
+        "403": {description: staff role required}
+    post:
+      summary: 분쟁 사례 등록 (T226, REG-01)
+      responses:
+        "201": {description: dispute case opened}
+        "403": {description: staff role required}
+
+  /disputes/seed-synthetic:
+    post:
+      summary: 합성 분쟁 데이터 시드 (PoC only)
+      responses:
+        "201": {description: synthetic disputes seeded}
+        "403": {description: ADMIN role required}
+
+  /disputes/{dispute_id}:
+    patch:
+      summary: 분쟁 사례 상태 업데이트 (T226)
+      responses:
+        "200": {description: dispute updated}
+        "403": {description: staff role required}
+        "404": {description: dispute not found}
+
+  # ── Marketing review + Data governance ──────────────────────────────────────
+
+  /marketing-review:
+    post:
+      summary: 광고심의 제출 (T247, REG-02)
+      responses:
+        "201": {description: review submitted}
+        "403": {description: staff role required}
+
+  /data-governance/pseudonym-metadata:
+    get:
+      summary: 가명정보 메타데이터 조회 (T218, 신용정보법 §40-2)
+      responses:
+        "200": {description: pseudonym metadata}
+        "403": {description: ADMIN role required}
+
+  /data-governance/purge-schedule:
+    get:
+      summary: 파기 스케줄 목록 조회
+      responses:
+        "200": {description: purge schedule list}
+        "403": {description: ADMIN role required}
+    post:
+      summary: 파기 스케줄 등록 (T219, 신용정보법 §20-2)
+      responses:
+        "201": {description: purge schedule created}
+        "403": {description: ADMIN role required}
+
+  # ── WebSocket ticket ─────────────────────────────────────────────────────────
+
+  /ws/ticket:
+    post:
+      summary: WebSocket 연결용 단기 티켓 발급 (T287, REG-05)
+      responses:
+        "200": {description: one-time WebSocket ticket}
+        "401": {description: Bearer access token required}
+
+components:
+  parameters:
+    CustomerId: {name: customer_id, in: path, required: true, schema: {type: string, format: uuid}}
+    ConsultationId: {name: consultation_id, in: path, required: true, schema: {type: string, format: uuid}}
+    DraftId: {name: draft_id, in: path, required: true, schema: {type: string, format: uuid}}
+    HouseViewId: {name: house_view_id, in: path, required: true, schema: {type: string, format: uuid}}
+    NbaId: {name: nba_id, in: path, required: true, schema: {type: string, format: uuid}}
+    EventId: {name: event_id, in: path, required: true, schema: {type: string, format: uuid}}
+    JobId: {name: job_id, in: path, required: true, schema: {type: string, format: uuid}}
+    OutputId: {name: output_id, in: path, required: true, schema: {type: string, format: uuid}}
+    OrderSimulationId: {name: order_simulation_id, in: path, required: true, schema: {type: string, format: uuid}}
+
+  schemas:
+    HealthResponse:
+      type: object
+      required: [status, service]
+      properties:
+        status: {type: string}
+        service: {type: string}
+
+    ConfigHealthResponse:
+      type: object
+      required: [status, config]
+      properties:
+        status: {type: string}
+        config: {type: object, additionalProperties: true}
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: {type: string}
+        password: {type: string}
+
+    LoginResponse:
+      type: object
+      required: [access_token, employee]
+      properties:
+        access_token: {type: string}
+        employee:
+          $ref: "#/components/schemas/EmployeePublic"
+
+    RefreshResponse:
+      type: object
+      required: [access_token, employee]
+      properties:
+        access_token: {type: string}
+        employee:
+          $ref: "#/components/schemas/EmployeePublic"
+
+    LogoutResponse:
+      type: object
+      required: [status]
+      properties:
+        status: {type: string, enum: [logged_out]}
+
+    EmployeePublic:
+      type: object
+      required: [id, name, role_code]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        role_code: {type: string, enum: [PB, WM, BRANCH_MANAGER, ADMIN, AUDIT_VIEWER]}
+        branch_id: {type: string, format: uuid, nullable: true}
+
+    DashboardSummary:
+      type: object
+      required: [urgent_nba_count, due_maturity_count, consultations_today, latest_house_view, domestic_market_status, synthetic_customer_notice]
+      properties:
+        urgent_nba_count: {type: integer}
+        due_maturity_count: {type: integer}
+        consultations_today: {type: integer}
+        latest_house_view:
+          type: object
+          nullable: true
+          additionalProperties: true
+        domestic_market_status:
+          $ref: "#/components/schemas/DomesticMarketStatus"
+        synthetic_customer_notice:
+          $ref: "#/components/schemas/SyntheticCustomerNotice"
+
+    ListEnvelope:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/CustomerListItem"
+        limit: {type: integer}
+        offset: {type: integer}
+
+    CustomerListItem:
+      type: object
+      required: [id, customer_no, customer_name, assigned_pb_id, branch_id, risk_grade_code, segment_code]
+      properties:
+        id: {type: string, format: uuid}
+        customer_no: {type: string}
+        customer_name: {type: string}
+        assigned_pb_id: {type: string, format: uuid}
+        branch_id: {type: string, format: uuid}
+        risk_grade_code: {type: string}
+        segment_code: {type: string}
+        total_assets_krw: {type: number}
+        last_contacted_at: {type: string, nullable: true}
+        is_active: {type: boolean}
+        created_at: {type: string}
+        updated_at: {type: string, nullable: true}
+
+    Customer360Response:
+      type: object
+      required: [customer, portfolios, holdings, portfolio_valuation, synthetic_customer_notice, nba_actions, aftercare_events]
+      properties:
+        customer:
+          $ref: "#/components/schemas/CustomerListItem"
+        portfolios:
+          type: array
+          items:
+            $ref: "#/components/schemas/Portfolio"
+        holdings:
+          type: array
+          items:
+            $ref: "#/components/schemas/PortfolioHolding"
+        portfolio_valuation:
+          $ref: "#/components/schemas/ValuationSource"
+        synthetic_customer_notice:
+          $ref: "#/components/schemas/SyntheticCustomerNotice"
+        nba_actions:
+          type: array
+          items:
+            $ref: "#/components/schemas/NbaAction"
+        aftercare_events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AftercareEvent"
+
+    Portfolio:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        portfolio_name: {type: string}
+        base_currency: {type: string}
+        valuation_date: {type: string}
+
+    PortfolioHolding:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        portfolio_id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        product_code: {type: string}
+        product_name: {type: string}
+        product_type_code: {type: string}
+        risk_level_code: {type: string}
+        quantity: {type: number}
+        market_value_krw: {type: number}
+        weight_pct: {type: number}
+        as_of_date: {type: string}
+        valuation_source:
+          $ref: "#/components/schemas/ValuationSource"
+
+    ProductListEnvelope:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        limit: {type: integer}
+        offset: {type: integer}
+
+    Product:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        product_code: {type: string}
+        product_name: {type: string}
+        product_type_code: {type: string}
+        risk_level_code: {type: string}
+        maturity_date: {type: string, nullable: true}
+
+    ConsultationCreateRequest:
+      type: object
+      required: [customer_id]
+      properties:
+        customer_id: {type: string, format: uuid}
+        channel_code: {type: string}
+
+    ConsultationPatchRequest:
+      type: object
+      properties:
+        summary: {type: string}
+        note_text: {type: string}
+        suitability_checked: {type: boolean}
+        explanation_checked: {type: boolean}
+        status_code: {type: string}
+
+    Consultation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        customer_name: {type: string}
+        employee_id: {type: string, format: uuid}
+        status_code: {type: string}
+        suitability_checked: {type: boolean}
+        explanation_checked: {type: boolean}
+
+    JobAcceptedResponse:
+      type: object
+      required: [job_id, status_code]
+      properties:
+        job_id: {type: string, format: uuid}
+        status_code: {type: string}
+
+    ComplianceCheckResponse:
+      type: object
+      required: [passed, issues, recommendation]
+      properties:
+        passed: {type: boolean}
+        issues: {type: array, items: {type: object, additionalProperties: true}}
+        recommendation: {type: string}
+
+    EmailDraftCreateRequest:
+      type: object
+      required: [subject, body]
+      properties:
+        customer_id: {type: string, format: uuid}
+        consultation_id: {type: string, format: uuid}
+        subject: {type: string}
+        body: {type: string}
+
+    EmailDraft:
+      type: object
+      required: [draft_id, id, customer_id, status_code, ai_output_id, created_at]
+      properties:
+        draft_id: {type: string, format: uuid}
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        consultation_id: {type: string, format: uuid, nullable: true}
+        status_code: {type: string, enum: [DRAFT, APPROVED, SENT, CANCELLED]}
+        ai_output_id: {type: string, format: uuid, nullable: true}
+        created_at: {type: string}
+        sent_at: {type: string, nullable: true}
+
+    EmailSendResponse:
+      type: object
+      required: [draft_id, status_code, sent_at, delivery]
+      properties:
+        draft_id: {type: string, format: uuid}
+        status_code: {type: string, enum: [SENT]}
+        sent_at: {type: string}
+        delivery:
+          type: object
+          additionalProperties: true
+
+    HouseViewCreateRequest:
+      type: object
+      properties:
+        period_code: {type: string}
+        title: {type: string}
+        summary: {type: string}
+        asset_views_json: {type: object, additionalProperties: true}
+        model_portfolios_json: {type: object, additionalProperties: true}
+        risks_json: {type: object, additionalProperties: true}
+
+    HouseViewListEnvelope:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/HouseView"
+        limit: {type: integer}
+        offset: {type: integer}
+
+    HouseView:
+      type: object
+      required: [id, version_no, period_code, title, status_code, summary]
+      properties:
+        id: {type: string, format: uuid}
+        version_no: {type: integer}
+        period_code: {type: string}
+        title: {type: string}
+        status_code: {type: string}
+        summary: {type: string}
+        asset_views_json: {type: object, additionalProperties: true}
+        model_portfolios_json: {type: object, additionalProperties: true}
+        risks_json: {type: object, additionalProperties: true}
+        leading_block_json: {type: object, additionalProperties: true, nullable: true}
+        created_by_id: {type: string, format: uuid}
+        activated_at: {type: string, nullable: true}
+        superseded_at: {type: string, nullable: true}
+        ai_generated_at: {type: string, nullable: true}
+        ai_model_name: {type: string, nullable: true}
+        data_quality_notice: {type: string, nullable: true, description: "P2-3: ai_generated_at가 있을 때 부착되는 합성 데이터 품질 고지"}
+        faithfulness: {$ref: "#/components/schemas/Faithfulness"}
+
+    NbaActionListEnvelope:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/NbaAction"
+        limit: {type: integer}
+        offset: {type: integer}
+
+    NbaAction:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        employee_id: {type: string, format: uuid}
+        action_type_code: {type: string}
+        priority_code: {type: string}
+        status_code: {type: string}
+        due_date: {type: string, nullable: true}
+        script_text: {type: string, nullable: true}
+        script_generated_at: {type: string, nullable: true}
+        script_model_name: {type: string, nullable: true}
+        script_disclosure: {type: string, nullable: true, description: "P2-1: script_text가 있을 때 부착되는 합성 데이터 품질 고지"}
+
+    NbaStatusPatchRequest:
+      type: object
+      required: [status_code]
+      properties:
+        status_code: {type: string, enum: [IN_PROGRESS, DONE, SNOOZED, DISMISSED]}
+        snoozed_until: {type: string, nullable: true}
+
+    AftercareEvent:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        employee_id: {type: string, format: uuid}
+        event_type_code: {type: string}
+        status_code: {type: string}
+        notes: {type: string, nullable: true}
+
+    RagQueryRequest:
+      type: object
+      required: [question]
+      properties:
+        question: {type: string}
+        filter_source_types: {type: array, items: {type: string}}
+        corp_code: {type: string}
+        receipt_no: {type: string}
+        provider_code: {type: string}
+        published_from: {type: string}
+        published_to: {type: string}
+
+    RagQueryResponse:
+      type: object
+      required: [status_code, answer, confidence, citations, caveat, output_id, generated_at, model_name]
+      properties:
+        status_code: {type: string, enum: [BLOCKED, READY]}
+        answer: {type: string}
+        confidence: {type: number}
+        citations: {type: array, items: {type: object, additionalProperties: true}}
+        caveat: {type: object, additionalProperties: true}
+        output_id: {type: string, format: uuid}
+        generated_at: {type: string}
+        model_name: {type: string}
+        readiness: {type: object, additionalProperties: true}
+        data_quality_notice: {type: string, description: "P2-2: 모든 READY/BLOCKED 응답에 부착되는 합성 데이터 품질 고지"}
+        faithfulness: {$ref: "#/components/schemas/Faithfulness"}
+
+    Faithfulness:
+      type: object
+      description: 결정성 faithfulness 평가 (관찰성/flagging 전용, 응답 차단 아님). P2-2/P2-3.
+      properties:
+        method: {type: string}
+        has_disclosure: {type: boolean}
+        ungrounded_figures: {type: array, items: {type: string}}
+        flags: {type: array, items: {type: string}}
+        passed: {type: boolean}
+
+    RecommendationSimulationRequest:
+      type: object
+      required: [customer_id, consultation_id, product_id]
+      properties:
+        customer_id: {type: string, format: uuid}
+        consultation_id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        explanation_checked: {type: boolean}
+        simulated_customer_consented: {type: boolean}
+        employee_final_approved: {type: boolean}
+
+    RecommendationSimulation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        employee_id: {type: string, format: uuid}
+        consultation_id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        status_code: {type: string, enum: [DRAFT, BLOCKED, APPROVED, CANCELLED]}
+        gate_detail_json: {type: object, additionalProperties: true}
+
+    OrderSimulationRequest:
+      type: object
+      required: [recommendation_simulation_id, product_id]
+      properties:
+        recommendation_simulation_id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        side_code: {type: string, enum: [BUY, SELL]}
+        quantity: {type: number, nullable: true}
+        amount_krw: {type: number, nullable: true}
+
+    OrderSimulation:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        recommendation_simulation_id: {type: string, format: uuid}
+        customer_id: {type: string, format: uuid}
+        employee_id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        side_code: {type: string}
+        status_code: {type: string, enum: [DRAFT, BLOCKED, APPROVED, SIMULATED_EXECUTED, CANCELLED]}
+        gate_detail_json: {type: object, additionalProperties: true}
+        simulated_executed_at: {type: string, nullable: true}
+
+    BatchStatusEnvelope:
+      type: object
+      required: [items, limit, offset, provider_mode]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchJobLog"
+        limit: {type: integer}
+        offset: {type: integer}
+        provider_mode:
+          $ref: "#/components/schemas/ProviderMode"
+
+    BatchJobLog:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        job_name: {type: string}
+        job_type_code: {type: string}
+        status_code: {type: string}
+        rows_collected: {type: integer}
+        rows_skipped: {type: integer}
+        rows_failed: {type: integer}
+        error_message: {type: string, nullable: true}
+        provider_evidence:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchProviderEvidence"
+
+    BatchProviderEvidence:
+      type: object
+      required: [id, batch_job_log_id, provider_code, provider_status_code, target_ref, rows_collected, rows_skipped, rows_failed, provider_detail_json, observed_at]
+      properties:
+        id: {type: string, format: uuid}
+        batch_job_log_id: {type: string, format: uuid}
+        provider_code: {type: string}
+        provider_status_code:
+          type: string
+          enum:
+            - PROVIDER_DONE
+            - PROVIDER_NO_DATA
+            - PROVIDER_SKIPPED_CONFIG
+            - PROVIDER_SKIPPED_DISABLED
+            - PROVIDER_FAILED_AUTH
+            - PROVIDER_FAILED_RATE_LIMIT
+            - PROVIDER_FAILED_SCHEMA
+            - PROVIDER_FAILED_NETWORK
+        target_ref: {type: string}
+        rows_collected: {type: integer}
+        rows_skipped: {type: integer}
+        rows_failed: {type: integer}
+        reason_message: {type: string, nullable: true}
+        provider_detail_json: {type: object, additionalProperties: true}
+        observed_at: {type: string}
+
+    DataReadiness:
+      type: object
+      description: >
+        Current API/Web readiness surface. The top-level status is derived from current required data
+        gates; historical provider SKIPPED/FAILED/no-data rows remain visible in checks and
+        batch_status_summary but do not downgrade the top-level status after the concrete gates are
+        READY.
+      required: [status_code, checks, domestic_market, t55_provider_readiness, rag, batch_status_summary, provider_mode, synthetic_customer_notice]
+      properties:
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        checks: {type: array, items: {type: object, additionalProperties: true}}
+        domestic_market:
+          $ref: "#/components/schemas/DomesticMarketStatus"
+        t55_provider_readiness:
+          $ref: "#/components/schemas/T55ProviderReadiness"
+        rag: {type: object, additionalProperties: true}
+        batch_status_summary: {type: object, additionalProperties: true}
+        provider_mode:
+          $ref: "#/components/schemas/ProviderMode"
+        synthetic_customer_notice:
+          $ref: "#/components/schemas/SyntheticCustomerNotice"
+
+    T55ProviderReadiness:
+      type: object
+      required: [status_code, policy_code, checks, message]
+      properties:
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        policy_code:
+          type: string
+          enum: [KRX_BLOCKED, PYKRX_AUXILIARY, OFFICIAL_KRX_APPROVED]
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/T55ReadinessCheck"
+        message: {type: string}
+
+    T55ReadinessCheck:
+      type: object
+      required: [check_code, status_code, observed_count, required_count, message]
+      properties:
+        check_code:
+          type: string
+          enum:
+            - schema.provider_evidence
+            - provider.ecos_parseable_rows
+            - provider.dart_parseable_documents
+            - rag.dart_chunks
+            - provider.krx_policy
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        observed_count: {type: integer}
+        required_count: {type: integer}
+        message: {type: string}
+        provider_done_count: {type: integer}
+        document_source_count: {type: integer}
+        chunk_count: {type: integer}
+        policy_code: {type: string}
+        requested_source: {type: string}
+        requested_policy_code: {type: string}
+        policy_evidence_count: {type: integer}
+        latest_reference_date: {type: string, nullable: true}
+
+    SyntheticCustomerNotice:
+      type: object
+      required: [status_code, message]
+      properties:
+        status_code: {type: string, enum: [SYNTHETIC_ONLY]}
+        message: {type: string}
+
+    ProviderMode:
+      type: object
+      required: [profile, strict_external, required_provider_codes, status_code, message]
+      properties:
+        profile: {type: string}
+        strict_external: {type: boolean}
+        required_provider_codes:
+          type: array
+          items: {type: string}
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        problem_count: {type: integer}
+        message: {type: string}
+
+    DomesticMarketStatus:
+      type: object
+      required: [status_code, source_as_of, freshness_status_code, quality_status_code, checks, message]
+      properties:
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        source_code: {type: string, nullable: true}
+        source_policy_code: {type: string, nullable: true}
+        source_policy_label: {type: string, nullable: true}
+        source_as_of: {type: string, nullable: true}
+        freshness_status_code: {type: string, enum: [FRESH, STALE, MISSING]}
+        quality_status_code: {type: string, enum: [ACCEPTED, UNVERIFIED]}
+        top200_coverage:
+          $ref: "#/components/schemas/Top200Coverage"
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MarketReadinessCheck"
+        message: {type: string}
+
+    Top200Coverage:
+      type: object
+      description: >
+        Serviceable domestic-market coverage for DOMESTIC_TOP200_MARKET_CAP. READY requires
+        official KRX evidence, selected_count >= required_count, coverage_ratio at or above the
+        required threshold, and missing_member_days = 0 across the official expected-trading-day
+        denominator.
+      required: [universe_code, selected_count, required_count, lookback_days, expected_member_days, observed_member_days, coverage_ratio, missing_member_days, status_code]
+      properties:
+        universe_code:
+          type: string
+          enum: [DOMESTIC_TOP200_MARKET_CAP]
+        as_of_date: {type: string, nullable: true}
+        resolved_trading_date: {type: string, nullable: true}
+        selected_count: {type: integer}
+        required_count: {type: integer}
+        lookback_days: {type: integer}
+        required_coverage_ratio: {type: number}
+        expected_trading_days_by_market:
+          type: object
+          additionalProperties: {type: integer}
+        expected_member_days: {type: integer}
+        observed_member_days: {type: integer}
+        covered_tickers: {type: integer}
+        coverage_ratio: {type: number}
+        missing_member_days: {type: integer}
+        latest_source_as_of: {type: string, nullable: true}
+        source_code: {type: string, nullable: true}
+        source_policy_code: {type: string, nullable: true}
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        blocking_reasons:
+          type: array
+          items: {type: string}
+
+    MarketReadinessCheck:
+      type: object
+      required: [check_code, status_code, observed_count, required_count, message]
+      properties:
+        check_code: {type: string}
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        observed_count: {type: integer}
+        required_count: {type: integer}
+        message: {type: string}
+        source_code: {type: string, nullable: true}
+        source_policy_code: {type: string, nullable: true}
+        source_policy_label: {type: string, nullable: true}
+        source_as_of: {type: string, nullable: true}
+        freshness_status_code: {type: string, nullable: true}
+        quality_status_code: {type: string, nullable: true}
+
+    ValuationSource:
+      type: object
+      required: [status_code, source_as_of, freshness_status_code, quality_status_code, message]
+      properties:
+        status_code: {type: string, enum: [READY, BLOCKED, DEGRADED]}
+        source_code: {type: string, nullable: true}
+        source_as_of: {type: string, nullable: true}
+        synthetic_as_of: {type: string, nullable: true}
+        freshness_status_code: {type: string, enum: [FRESH, STALE, MISSING]}
+        quality_status_code: {type: string, enum: [ACCEPTED, UNVERIFIED]}
+        display_basis_code: {type: string}
+        portfolio_count: {type: integer}
+        holding_count: {type: integer}
+        total_market_value_krw: {type: number}
+        message: {type: string}
+
+    AuditLogEnvelope:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        limit: {type: integer}
+        offset: {type: integer}
+
+    AuditLog:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        actor_id: {type: string, format: uuid, nullable: true}
+        action_code: {type: string}
+        resource_type: {type: string}
+        resource_id: {type: string, format: uuid, nullable: true}
+        detail_json: {type: object, additionalProperties: true}
+        created_at: {type: string}
+
+    AiJob:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        job_type_code: {type: string}
+        status_code: {type: string}
+        resource_type: {type: string, nullable: true}
+        resource_id: {type: string, format: uuid, nullable: true}
+        error_message: {type: string, nullable: true}
+
+    AiOutput:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        agent_id: {type: string}
+        model_name: {type: string}
+        generated_at: {type: string}
+        resource_type: {type: string}
+        resource_id: {type: string, format: uuid, nullable: true}
+        output_json: {type: object, additionalProperties: true}
+        citations_json: {type: array, items: {type: object, additionalProperties: true}}

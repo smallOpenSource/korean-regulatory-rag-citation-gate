@@ -1,0 +1,277 @@
+version: "1.1.0"
+# Canonical prompt-injection pattern library — ADR-005 §3
+# Single source-of-truth for: indexing-time quarantine scoring, retrieval-time filtering,
+# response-time output sanitization, and email/consultation paths.
+#
+# Update cadence: changes require ADR-005 amendment + regression-test run over RAG golden
+# set (AI-04 T260). Do not edit without amending ADR-005 and bumping version.
+
+patterns:
+
+  # ── Category: instruction_override ──────────────────────────────────────────
+  - id: PI-001
+    category: instruction_override
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|rules?|prompt)'
+    notes: "Classic LLM01 override; OWASP Prompt Injection Cheat Sheet §Instruction-Following Attacks"
+
+  - id: PI-002
+    category: instruction_override
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)disregard\s+(the\s+)?(above|previous|prior|following)\s*(instructions?|rules?|prompt|context)?'
+    notes: "Disregard variant of instruction override"
+
+  - id: PI-003
+    category: instruction_override
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)(forget|override|bypass|circumvent)\s+(all\s+)?(previous|prior|system|your)\s+(instructions?|rules?|constraints?|prompt)'
+    notes: "Extended override verbs — covers jailbreak prompt prefixes"
+
+  # ── Category: system_prompt_extraction ──────────────────────────────────────
+  - id: PI-004
+    category: system_prompt_extraction
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)(what\s+is|reveal|show|print|repeat|output|leak|tell)(\s+(me|us))?(\s+(your|the))?\s+(system|initial|original|hidden|internal)\s+(prompt|instructions?)'
+    notes: "Direct system-prompt extraction; LLM07 System Prompt Leakage"
+
+  - id: PI-005
+    category: system_prompt_extraction
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)(repeat|echo|print|output)\s+(everything|all|the\s+(text|words|content))\s+(above|before|prior|from\s+the\s+beginning)'
+    notes: "Repeat-above extraction variant; prompts the model to echo its context window"
+
+  # ── Category: base64_injection ───────────────────────────────────────────────
+  - id: PI-006
+    category: base64_injection
+    severity: medium
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '[A-Za-z0-9+/]{40,}={0,2}'
+    notes: >
+      Detects base64 payloads >= 40 chars. ADR-005 uses 120 for hard-block;
+      40 flags for quarantine scoring. Further LLM-judge recommended to reduce FP.
+      Matches obfuscated instruction payloads encoded in base64.
+
+  # ── Category: tool_call_solicitation ────────────────────────────────────────
+  - id: PI-007
+    category: tool_call_solicitation
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)(execute|call|invoke|run|trigger)\s+(?:(?:a|an|the)\s+)?(function|tool|command|script|api|endpoint)'
+    notes: "Tool call solicitation; LLM06 Excessive Agency — direct function call request"
+
+  - id: PI-008
+    category: tool_call_solicitation
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(?i)(send|post|delete|drop|update|insert)(?:\s+\w+){0,3}\s+(email|table|record|data|message|database)'
+    notes: "Destructive DB/email tool solicitation embedded in retrieved documents"
+
+  # ── Category: indirect_url_exfil ────────────────────────────────────────────
+  - id: PI-009
+    category: indirect_url_exfil
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: 'https?://[^\s]+\?[^\s]*(token|secret|api[_\-]?key|password|credential)='
+    notes: "URL with credential query-param; exfiltration callback; LLM02 Sensitive Info Disclosure"
+
+  - id: PI-010
+    category: indirect_url_exfil
+    severity: medium
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: 'https?://(?!(?:dart\.fss\.or\.kr|www\.fsc\.go\.kr|www\.bok\.or\.kr|ecos\.bok\.or\.kr))[^\s]{6,}'
+    notes: >
+      External URL not on the approved domain allowlist (DART, FSC, BOK, ECOS).
+      Lower severity; used for quarantine_flag scoring in retrieved chunks.
+
+  # ── Category: spotlight_marker_injection ────────────────────────────────────
+  - id: PI-011
+    category: spotlight_marker_injection
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '</?(USER_DATA|RETRIEVED_CONTEXT|SYSTEM)\b'
+    notes: >
+      Attempt to inject or close spotlighting markers from untrusted text.
+      Triggers fail_closed_reason_code=PROMPT_INJECTION_DETECTED and
+      LLM07_LEAKAGE_REDACTED audit on model output. ADR-005 §2.
+
+  - id: PI-012
+    category: spotlight_marker_injection
+    severity: high
+    locale: en
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '<RETRIEVED_CONTEXT\b'
+    notes: "Open RETRIEVED_CONTEXT marker injection — catches partial marker injection attempts"
+
+  # ── Category: korean_instruction_override (조사/존비격) ──────────────────────
+  - id: PI-KO-001
+    category: instruction_override
+    severity: high
+    locale: ko
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '위 지시( 들)?( 다| 모두| 전부)?\s*무시(하고|해|해줘|해주세요)'
+    description: "한국어 직접 지시 재정의 — '위 지시 무시' 조사/존비격 변형 (LLM01)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-002
+    category: instruction_override
+    severity: high
+    locale: ko
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '이전 (지시|명령|prompt)(은|는|을|를)?( 다)? (잊|폐기|drop|덮)'
+    description: "이전 지시 폐기 시도 — 조사 변형 포함 (LLM01)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-003
+    category: instruction_override
+    severity: high
+    locale: ko
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(앞의|이전의|위의) 모든 (것을|건|걸) 무시'
+    description: "앞/이전/위의 모든 것 무시 패턴 (LLM01)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  # ── Category: korean_instruction_override (한자 혼용) ────────────────────────
+  - id: PI-KO-004
+    category: instruction_override
+    severity: medium
+    locale: ko
+    applies_to: [indexing, retrieval]
+    precedence: 100
+    regex: '(無視|無効)'
+    description: "한자 無視/無効 혼용 지시 재정의 시도 (LLM01 우회)"
+    mitigation: "quarantine_flag 설정 + ai_injection_detected 감사"
+
+  - id: PI-KO-005
+    category: system_prompt_extraction
+    severity: high
+    locale: ko
+    applies_to: [indexing, retrieval, output]
+    precedence: 100
+    regex: '(露出|流出|公開).{0,10}(시스템|system|프롬프트|prompt)'
+    description: "한자 露出/流出/公開를 이용한 시스템 프롬프트 추출 시도 (LLM07)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-006
+    category: instruction_override
+    severity: medium
+    locale: ko
+    applies_to: [indexing, retrieval]
+    precedence: 100
+    regex: '命令.{0,5}(무시|無視)'
+    description: "한자 命令 혼용 무시 패턴 (LLM01 한자 우회)"
+    mitigation: "quarantine_flag 설정 + ai_injection_detected 감사"
+
+  # ── Category: korean_role_impersonation (호칭/역할) ──────────────────────────
+  - id: PI-KO-007
+    category: tool_call_solicitation
+    severity: high
+    locale: ko
+    applies_to: [output]
+    precedence: 100
+    regex: '관리자(가|는|로서|입니다)\s*.{0,20}(명령|지시|요청)'
+    description: "관리자 호칭을 이용한 권한 사칭 및 명령 시도 (LLM06)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-008
+    category: tool_call_solicitation
+    severity: high
+    locale: ko
+    applies_to: [output]
+    precedence: 100
+    regex: '((역할|롤)(을|이|은|는)\s*(의사|변호사|관리자|개발자)(로|으로)? (변경|바꿔|해))|(너는\s*(의사|변호사|관리자|개발자)(야|이야|입니다))'
+    description: "역할 변경/사칭 요청 — 역할 변경 명시 또는 '너는 <직업>야' 형식의 LLM 역할 사칭 시도 (LLM06)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-009
+    category: tool_call_solicitation
+    severity: high
+    locale: ko
+    applies_to: [output]
+    precedence: 100
+    regex: '(시스템|관리자)\s*권한(으로|을 가진)'
+    description: "시스템/관리자 권한 사칭을 통한 명령 시도 (LLM06)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  # ── Category: korean_educational_bypass ([교육용] 우회) ──────────────────────
+  - id: PI-KO-010
+    category: instruction_override
+    severity: high
+    locale: ko
+    applies_to: [indexing, output]
+    precedence: 100
+    regex: '\[?교육용\]?\s*(라벨|태그|tag)?\s*(제거|무시|삭제)'
+    description: "[교육용] 라벨/태그 제거·무시를 통한 안전장치 우회 시도 (LLM01)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-011
+    category: instruction_override
+    severity: high
+    locale: ko
+    applies_to: [indexing, output]
+    precedence: 100
+    regex: '(실제|본|진짜)\s*(prompt|지시|명령)(을|를)\s*(실행|수행)'
+    description: "'실제/본/진짜 지시 실행' 패턴 — 교육용 래퍼 우회 시도 (LLM01)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  # ── Category: korean_pii_exfiltration (PII 탈취) ────────────────────────────
+  - id: PI-KO-012
+    category: indirect_url_exfil
+    severity: critical
+    locale: ko
+    applies_to: [output]
+    precedence: 100
+    regex: '(주민번호|주민등록번호|계좌번호|카드번호)(을|를|는)?\s*(보여|출력|공개|알려)'
+    description: "한국어 PII(주민번호/계좌번호/카드번호) 출력 요청 (LLM02)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  - id: PI-KO-013
+    category: indirect_url_exfil
+    severity: critical
+    locale: ko
+    applies_to: [output]
+    precedence: 100
+    regex: '(고객|회원)?\s*(개인정보|사생활)(을|를)?\s*(보여|덤프|dump|출력)'
+    description: "고객/회원 개인정보 덤프·출력 요청 (LLM02)"
+    mitigation: "fail_closed PROMPT_INJECTION_DETECTED + ai_injection_detected 감사"
+
+  # ── Category: korean_self_reference_bypass (자기참조 우회) ───────────────────
+  - id: PI-KO-014
+    category: instruction_override
+    severity: medium
+    locale: ko
+    applies_to: [output]
+    precedence: 100
+    regex: '이 모든 (것|건|걸)(을|를)?\s*비밀(로|로 해|로 해줘)'
+    description: "자기참조 비밀 유지 요청 — 감사 회피 시도 (LLM01)"
+    mitigation: "quarantine_flag 설정 + ai_injection_detected 감사"

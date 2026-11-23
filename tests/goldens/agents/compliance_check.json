@@ -1,0 +1,28 @@
+{
+  "_comment": "Golden JSON-schema regression for compliance_check agent (REG-04 T261)",
+  "agent_id": "compliance_check",
+  "required_keys": ["status_code", "checks", "failed"],
+  "key_types": {
+    "status_code": "string",
+    "checks": "object",
+    "failed": "array"
+  },
+  "value_constraints": {
+    "status_code": {"allowed_values": ["APPROVED", "BLOCKED"]},
+    "checks": {
+      "required_check_keys": [
+        "suitability_passed",
+        "explanation_checked",
+        "simulated_customer_consented",
+        "employee_final_approved"
+      ]
+    }
+  },
+  "rule_based_deterministic": true,
+  "forbidden_keys": ["system_prompt", "raw_provider_response"],
+  "ai_badge_required": false,
+  "metadata": {
+    "task_id": "T261",
+    "ref": "REG-04 §3 compliance_check governance + BIZ-09 4-gate evaluation"
+  }
+}

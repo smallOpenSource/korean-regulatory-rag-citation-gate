@@ -1,0 +1,501 @@
+prd_ref: PRD §3.4 + §6 G0a
+generated_at: '2026-05-20'
+reconciled_at: '2026-05-20'
+total_found: 55
+excluded_count: 8
+covered_count: 46
+endpoints:
+- method: POST
+  path: /email-drafts
+  router: email.py
+  function_name: create_email_draft
+  file: apps/api/harness/api/routers/email.py
+  line: 137
+  content_state_transition: email_drafts INSERT + audit_logs INSERT (email_drafted)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /email-drafts/{draft_id}/submit
+  router: email.py
+  function_name: submit_email_draft
+  file: apps/api/harness/api/routers/email.py
+  line: 230
+  content_state_transition: marketing_reviews INSERT + email_drafts UPDATE → PENDING_APPROVAL + audit_logs INSERT (email_draft_submitted / marketing_review_blocked)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /email-drafts/{draft_id}/approve
+  router: email.py
+  function_name: approve_email_draft
+  file: apps/api/harness/api/routers/email.py
+  line: 345
+  content_state_transition: email_drafts UPDATE → APPROVED + audit_logs INSERT (email_draft_approved)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /email-drafts/{draft_id}/reject
+  router: email.py
+  function_name: reject_email_draft
+  file: apps/api/harness/api/routers/email.py
+  line: 404
+  content_state_transition: email_drafts UPDATE → DRAFT + audit_logs INSERT (email_draft_rejected)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /email-drafts/{draft_id}/send
+  router: email.py
+  function_name: send_approved_email_draft
+  file: apps/api/harness/api/routers/email.py
+  line: 451
+  content_state_transition: 'email_drafts UPDATE → SENT/FAILED + audit_logs INSERT (email_sent_via_sandbox / email_send_blocked / email_send_failed) + external: Mailpit SMTP'
+  exclude_candidate: true
+  exclude_reason: Mailpit 외부 SMTP 전송 — 비가역적 외부 호출. v8 traversal 반복 방문 시 sandbox 오염. email_drafts 상태전이(DRAFT→PENDING→APPROVED→SENT)는 앞선 4 endpoints로 커버됨.
+  risk_class: CRITICAL
+- method: PATCH
+  path: /nba-actions/{nba_id}/status
+  router: nba.py
+  function_name: update_nba_status
+  file: apps/api/harness/api/routers/nba.py
+  line: 64
+  content_state_transition: nba_actions UPDATE status_code + audit_logs INSERT (nba_complete / nba_dismiss, conditional on DONE/DISMISSED)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /aftercare-events/{event_id}/resolve
+  router: nba.py
+  function_name: resolve_aftercare_event
+  file: apps/api/harness/api/routers/nba.py
+  line: 101
+  content_state_transition: aftercare_events UPDATE → RESOLVED + audit_logs INSERT (aftercare_event_resolve)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /nba-cards
+  router: nba.py
+  function_name: create_nba_card
+  file: apps/api/harness/api/routers/nba.py
+  line: 136
+  content_state_transition: nba_actions INSERT + audit_logs INSERT (nba_card_created) + WS broadcast nba_created
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /nba-cards/{nba_id}/acknowledge
+  router: nba.py
+  function_name: acknowledge_nba_card
+  file: apps/api/harness/api/routers/nba.py
+  line: 213
+  content_state_transition: nba_actions UPDATE → IN_PROGRESS + audit_logs INSERT (nba_card_acknowledged) + WS broadcast nba_updated
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /nba-cards/{nba_id}/complete
+  router: nba.py
+  function_name: complete_nba_card
+  file: apps/api/harness/api/routers/nba.py
+  line: 258
+  content_state_transition: nba_actions UPDATE → DONE + audit_logs INSERT (nba_card_completed) + WS broadcast nba_updated
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /nba-cards/{nba_id}/dismiss
+  router: nba.py
+  function_name: dismiss_nba_card
+  file: apps/api/harness/api/routers/nba.py
+  line: 303
+  content_state_transition: nba_actions UPDATE → DISMISSED + audit_logs INSERT (nba_card_dismissed) + WS broadcast nba_updated
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /aftercare-events/{event_id}/complete
+  router: nba.py
+  function_name: complete_aftercare_event
+  file: apps/api/harness/api/routers/nba.py
+  line: 366
+  content_state_transition: aftercare_events UPDATE → COMPLETED + audit_logs INSERT (aftercare_completed)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /aftercare-events/{event_id}/skip
+  router: nba.py
+  function_name: skip_aftercare_event
+  file: apps/api/harness/api/routers/nba.py
+  line: 410
+  content_state_transition: aftercare_events UPDATE → SKIPPED + audit_logs INSERT (aftercare_skipped)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /house-views
+  router: house_views.py
+  function_name: create_house_view
+  file: apps/api/harness/api/routers/house_views.py
+  line: 71
+  content_state_transition: house_views INSERT (DRAFT)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /house-views/{house_view_id}/generate
+  router: house_views.py
+  function_name: generate_house_view
+  file: apps/api/harness/api/routers/house_views.py
+  line: 96
+  content_state_transition: ai_jobs INSERT (house_view_generation PENDING) + audit_logs INSERT (AI_CALL_STARTED)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /house-views/{house_view_id}/activate
+  router: house_views.py
+  function_name: activate_house_view
+  file: apps/api/harness/api/routers/house_views.py
+  line: 133
+  content_state_transition: house_views UPDATE → ACTIVATED + audit_logs INSERT (house_view_activate)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /house-views/{house_view_id}/generate-content
+  router: house_views.py
+  function_name: generate_house_view_content_endpoint
+  file: apps/api/harness/api/routers/house_views.py
+  line: 166
+  content_state_transition: 'house_views UPDATE → GENERATED + audit_logs INSERT (house_view_generated) + external: Azure OpenAI GPT synchronous call'
+  exclude_candidate: false
+  risk_class: CRITICAL
+- method: POST
+  path: /house-views/{house_view_id}/review
+  router: house_views.py
+  function_name: review_house_view
+  file: apps/api/harness/api/routers/house_views.py
+  line: 240
+  content_state_transition: house_views UPDATE → REVIEWED + audit_logs INSERT (house_view_reviewed)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /house-views/{house_view_id}/activate-lifecycle
+  router: house_views.py
+  function_name: activate_lifecycle_house_view
+  file: apps/api/harness/api/routers/house_views.py
+  line: 272
+  content_state_transition: house_views UPDATE → ACTIVATED (prev ACTIVATED → ARCHIVED) + audit_logs INSERT (house_view_activated)
+  exclude_candidate: true
+  exclude_reason: ONE-PER-TUPLE 영구 전이 — 동일 (market, asset_class, region) 튜플의 기존 ACTIVATED를 ARCHIVED로 변경. v8 traversal 반복 방문 시 모든 기존 ACTIVATED 레코드 비가역적 ARCHIVED 전이 위험.
+  risk_class: HIGH
+- method: POST
+  path: /consultations/{consultation_id}/suitability
+  router: consultation_gates.py
+  function_name: submit_suitability_assessment
+  file: apps/api/harness/api/routers/consultation_gates.py
+  line: 55
+  content_state_transition: suitability_assessments INSERT + consultation_gates UPSERT (suitability) + audit_logs INSERT (suitability_confirmed / suitability_grade_block)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consultations/{consultation_id}/appropriateness-acknowledge
+  router: consultation_gates.py
+  function_name: acknowledge_appropriateness_warning
+  file: apps/api/harness/api/routers/consultation_gates.py
+  line: 157
+  content_state_transition: consultation_gates UPSERT (suitability PASSED/BLOCKED) + audit_logs INSERT (appropriateness_warning_acknowledged)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consultations/{consultation_id}/explanation-confirm
+  router: consultation_gates.py
+  function_name: confirm_explanation
+  file: apps/api/harness/api/routers/consultation_gates.py
+  line: 249
+  content_state_transition: consultation_gates UPSERT (explanation PASSED) + audit_logs INSERT (explanation_confirmed)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consultations/{consultation_id}/four-gate/{gate_name}/acknowledge
+  router: consultation_gates.py
+  function_name: acknowledge_gate
+  file: apps/api/harness/api/routers/consultation_gates.py
+  line: 333
+  content_state_transition: consultation_gates UPDATE gate_acknowledged_at + audit_logs INSERT (four_gate_acknowledged)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consultations/{consultation_id}/unfair-solicitation-check
+  router: consultation_gates.py
+  function_name: check_unfair_solicitation_gate
+  file: apps/api/harness/api/routers/consultation_gates.py
+  line: 394
+  content_state_transition: consultation_gates UPSERT (unfair_solicitation) + audit_logs INSERT (unfair_solicitation_blocked, conditional on BLOCKED)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consultations
+  router: consultations.py
+  function_name: create_consultation
+  file: apps/api/harness/api/routers/consultations.py
+  line: 38
+  content_state_transition: consultations INSERT + audit_logs INSERT (consultation_create)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: PATCH
+  path: /consultations/{consultation_id}
+  router: consultations.py
+  function_name: update_consultation
+  file: apps/api/harness/api/routers/consultations.py
+  line: 74
+  content_state_transition: consultations UPDATE + consultation_notes INSERT (conditional) + audit_logs INSERT (consultation_complete, conditional on COMPLETED)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consultations/{consultation_id}/briefing
+  router: consultations.py
+  function_name: create_consultation_briefing_job
+  file: apps/api/harness/api/routers/consultations.py
+  line: 130
+  content_state_transition: ai_jobs INSERT (consultation_briefing PENDING) + audit_logs INSERT (AI_CALL_STARTED)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /consultations/{consultation_id}/compliance-check
+  router: consultations.py
+  function_name: compliance_check
+  file: apps/api/harness/api/routers/consultations.py
+  line: 170
+  content_state_transition: 'ai_outputs INSERT + audit_logs INSERT (AI_CALL_SUCCEEDED / AI_CALL_FAILED) + external: Azure AI compliance_check agent'
+  exclude_candidate: false
+  risk_class: CRITICAL
+- method: POST
+  path: /consents/grant
+  router: consents.py
+  function_name: grant_consent
+  file: apps/api/harness/api/routers/consents.py
+  line: 63
+  content_state_transition: customer_consents INSERT + audit_logs INSERT (consent_recorded)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /consents/withdraw
+  router: consents.py
+  function_name: withdraw_consent
+  file: apps/api/harness/api/routers/consents.py
+  line: 109
+  content_state_transition: customer_consents UPDATE withdrawn_at + audit_logs INSERT (consent_withdrawn / marketing_consent_withdrawn)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consents/marketing/stop
+  router: consents.py
+  function_name: marketing_stop
+  file: apps/api/harness/api/routers/consents.py
+  line: 159
+  content_state_transition: customer_consents UPDATE withdrawn_at (MARKETING_CONTACT) + audit_logs INSERT (marketing_consent_withdrawn)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /consents/general-bundle
+  router: consents.py
+  function_name: general_bundle_consent
+  file: apps/api/harness/api/routers/consents.py
+  line: 219
+  content_state_transition: customer_consents INSERT (GENERAL_BUNDLE) + audit_logs INSERT (general_bundle_consent)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /info-access-requests
+  router: consents.py
+  function_name: create_info_access_request
+  file: apps/api/harness/api/routers/consents.py
+  line: 261
+  content_state_transition: info_access_requests INSERT + audit_logs INSERT (info_access_requested)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /info-access-requests/{request_id}/respond
+  router: consents.py
+  function_name: respond_info_access_request
+  file: apps/api/harness/api/routers/consents.py
+  line: 299
+  content_state_transition: info_access_requests UPDATE responded_at + audit_logs INSERT (info_access_responded)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /recommendation-simulations
+  router: simulations.py
+  function_name: create_recommendation_simulation
+  file: apps/api/harness/api/routers/simulations.py
+  line: 45
+  content_state_transition: recommendation_simulations INSERT + audit_logs INSERT (recommendation_simulation_create / recommendation_simulation_block)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /order-simulations
+  router: simulations.py
+  function_name: create_order_simulation
+  file: apps/api/harness/api/routers/simulations.py
+  line: 106
+  content_state_transition: order_simulations INSERT + audit_logs INSERT (order_simulation_create / order_simulation_block)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /order-simulations/{order_simulation_id}/execute-simulated
+  router: simulations.py
+  function_name: execute_order_simulation
+  file: apps/api/harness/api/routers/simulations.py
+  line: 161
+  content_state_transition: order_simulations UPDATE → SIMULATED_EXECUTED + audit_logs INSERT (order_simulation_execute_simulated)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /disputes
+  router: disputes.py
+  function_name: open_dispute_case
+  file: apps/api/harness/api/routers/disputes.py
+  line: 24
+  content_state_transition: dispute_cases INSERT (OPEN, response_due_at +30d) + audit_logs INSERT (dispute_case_opened)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: PATCH
+  path: /disputes/{dispute_id}
+  router: disputes.py
+  function_name: update_dispute_status
+  file: apps/api/harness/api/routers/disputes.py
+  line: 100
+  content_state_transition: dispute_cases UPDATE status (RESPONDED/RESOLVED) + audit_logs INSERT (dispute_case_resolved, conditional on RESOLVED)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /kyc-edd/evaluate
+  router: kyc_edd.py
+  function_name: evaluate_and_record_triggers
+  file: apps/api/harness/api/routers/kyc_edd.py
+  line: 69
+  content_state_transition: kyc_edd_triggers INSERT × N (per fired rule) + audit_logs INSERT (kyc_edd_triggered) × N
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /kyc-edd/triggers/{trigger_id}/reassess
+  router: kyc_edd.py
+  function_name: reassess_trigger
+  file: apps/api/harness/api/routers/kyc_edd.py
+  line: 126
+  content_state_transition: kyc_edd_triggers UPDATE → IN_PROGRESS + audit_logs INSERT (kyc_edd_reassessed)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /kyc-edd/triggers/{trigger_id}/complete
+  router: kyc_edd.py
+  function_name: complete_trigger
+  file: apps/api/harness/api/routers/kyc_edd.py
+  line: 161
+  content_state_transition: kyc_edd_triggers UPDATE → CLOSED + audit_logs INSERT (kyc_edd_reassessed)
+  exclude_candidate: false
+  risk_class: HIGH
+- method: POST
+  path: /customers/{customer_id}/portfolio-analysis
+  router: customers.py
+  function_name: create_portfolio_analysis_job
+  file: apps/api/harness/api/routers/customers.py
+  line: 87
+  content_state_transition: ai_jobs INSERT (portfolio_analysis PENDING) + audit_logs INSERT (AI_CALL_STARTED)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /document-chunks/{chunk_id}/release
+  router: batch.py
+  function_name: release_document_chunk
+  file: apps/api/harness/api/routers/batch.py
+  line: 144
+  content_state_transition: document_chunks UPDATE quarantine_flag=false + audit_logs INSERT (quarantine_released)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /conflict-disclosures
+  router: conflict_of_interest.py
+  function_name: create_conflict_disclosure
+  file: apps/api/harness/api/routers/conflict_of_interest.py
+  line: 78
+  content_state_transition: conflict_disclosures INSERT + audit_logs INSERT (conflict_disclosed / conflict_of_interest_blocked)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /data-governance/purge-schedule
+  router: data_governance.py
+  function_name: create_purge_schedule
+  file: apps/api/harness/api/routers/data_governance.py
+  line: 40
+  content_state_transition: data_purge_schedules INSERT (purge_due_at +5y placeholder) + audit_logs INSERT (credit_info_purge_simulated)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /rights-notice
+  router: rights_notice.py
+  function_name: issue_rights_notice
+  file: apps/api/harness/api/routers/rights_notice.py
+  line: 24
+  content_state_transition: rights_notice INSERT (4 notice kinds) + audit_logs INSERT (rights_notice_issued)
+  exclude_candidate: false
+  risk_class: MEDIUM
+- method: POST
+  path: /auth/login
+  router: auth.py
+  function_name: login
+  file: apps/api/harness/api/routers/auth.py
+  line: 158
+  content_state_transition: JWT access + refresh token 발급 (Redis JTI 저장). DB write 없음.
+  exclude_candidate: true
+  exclude_reason: auth baseline — JWT 발급·password 검증은 traversal 범위 외. 전체 테스트 fixture setup 의존.
+  risk_class: BLOCKING
+- method: POST
+  path: /auth/refresh
+  router: auth.py
+  function_name: refresh
+  file: apps/api/harness/api/routers/auth.py
+  line: 252
+  content_state_transition: refresh token rotation + JTI blocklist (Redis). DB write 없음.
+  exclude_candidate: true
+  exclude_reason: auth baseline — refresh token rotation + JTI blocklist은 traversal 범위 외. REG-05 T283 보안 레인 전용.
+  risk_class: HIGH
+- method: POST
+  path: /auth/logout
+  router: auth.py
+  function_name: logout
+  file: apps/api/harness/api/routers/auth.py
+  line: 347
+  content_state_transition: HttpOnly cookie 삭제. DB write 없음.
+  exclude_candidate: true
+  exclude_reason: auth baseline — cookie 삭제만 수행. traversal 방문 시 session 소멸 → 후속 셀 전체 실패.
+  risk_class: HIGH
+- method: POST
+  path: /rag/query
+  router: ai.py
+  function_name: rag_query
+  file: apps/api/harness/api/routers/ai.py
+  line: 190
+  content_state_transition: 'ai_outputs INSERT + audit_logs INSERT (AI_CALL_SUCCEEDED / AI_CALL_FAILED) + external: Azure OpenAI RAG pipeline. Alias: POST /rag/qa (ai.py:191, same handler).'
+  exclude_candidate: true
+  exclude_reason: ai rag/query+qa — extractive citation gate + dual-LLM ADR-005. Azure OpenAI 외부 호출. RAG adversarial+golden suite에서 독립 검증.
+  risk_class: HIGH
+- method: POST
+  path: /marketing-review
+  router: marketing_review.py
+  function_name: submit_marketing_review
+  file: apps/api/harness/api/routers/marketing_review.py
+  line: 22
+  content_state_transition: marketing_reviews INSERT + audit_logs INSERT (marketing_review_blocked, conditional). Standalone gate.
+  exclude_candidate: true
+  exclude_reason: marketing gate standalone — 광고심의(REG-02 T224) 단독 게이트. four-gate compliance suite 검증. consultation 흐름 내 gate와 중복.
+  risk_class: HIGH
+- method: POST
+  path: /ws/ticket
+  router: websocket.py
+  function_name: issue_ws_ticket
+  file: apps/api/harness/api/routers/websocket.py
+  line: 95
+  content_state_transition: Redis harness:ws:ticket:<uuid> SET (30s TTL). DB write 없음.
+  exclude_candidate: true
+  exclude_reason: ws ticket issuance — T287 Redis one-shot 30s 티켓. WS 보안 suite 독립 검증. traversal 방문 시 미사용 ticket Redis 누적 → WS 연결 테스트 오염.
+  risk_class: HIGH
+- method: POST
+  path: /disputes/seed-synthetic
+  router: disputes.py
+  function_name: seed_synthetic_disputes
+  file: apps/api/harness/api/routers/disputes.py
+  line: 143
+  content_state_transition: dispute_cases bulk INSERT (synthetic PoC data). Idempotent utility.
+  exclude_candidate: false
+  risk_class: HIGH

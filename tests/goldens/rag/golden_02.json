@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: explanation duty checklist ordering (leading-block items first)",
+  "id": "rag-golden-02",
+  "scenario": "happy_path",
+  "question": "설명의무 체크리스트에서 선행 설명 항목(leading-block)을 먼저 안내해야 하는 규정 근거는 무엇인가요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["REG_PAGE", "MANUAL"],
+  "metadata": {
+    "regulation_ref": "금소법 §19 설명의무",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

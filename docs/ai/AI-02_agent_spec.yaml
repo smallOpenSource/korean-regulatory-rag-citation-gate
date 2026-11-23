@@ -1,0 +1,51 @@
+agents:
+  - id: house_view_generation
+    trigger: monthly_or_manual
+    model: ${AZURE_GPT5_DEPLOYMENT}
+    output: [summary, asset_views, model_portfolios, risks]
+    audit: true
+
+  - id: consultation_briefing
+    trigger: consultation_open
+    model: ${AZURE_GPT5_MINI_DEPLOYMENT}
+    output: [customer_context_summary, portfolio_highlights, suggested_agenda, risk_notes, follow_up_items]
+    audit: true
+
+  - id: nba_script
+    trigger: nba_creation
+    model: ${AZURE_GPT5_MINI_DEPLOYMENT}
+    output: [opening_line, key_message, product_discussion_angle, closing]
+    audit: true
+
+  - id: email_draft
+    trigger: user_request
+    model: ${AZURE_GPT5_MINI_DEPLOYMENT}
+    output: [subject, body]
+    audit: true
+
+  - id: rag_qa
+    trigger: user_question
+    model: ${AZURE_GPT5_MINI_DEPLOYMENT}
+    output: [answer, confidence, citations, caveat]
+    audit: true
+
+  - id: compliance_check
+    trigger: consultation_complete_attempt
+    model: ${AZURE_GPT5_MINI_DEPLOYMENT}
+    output: [passed, issues, recommendation]
+    audit: true
+
+  - id: portfolio_analysis
+    trigger: customer_360_open_or_manual
+    model: ${AZURE_GPT5_MINI_DEPLOYMENT}
+    output: [summary, drift_analysis, risk_flags, action_suggestions]
+    audit: true
+
+derived_refresh:
+  rag_readiness:
+    source: documents + document_chunks + batch_job_logs
+    statuses: [READY, PENDING_EMBEDDING, PROVIDER_BLOCKED, EMPTY]
+    rule: no generated answer without embedded chunks and audited model output
+  aftercare_nba:
+    source: customers + products + portfolios + aftercare_events
+    rule: derived NBA rows do not include AI script text/model metadata unless a real AI output exists

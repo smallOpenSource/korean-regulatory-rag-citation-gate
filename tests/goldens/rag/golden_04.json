@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: marketing review (광고심의) pre-approval requirement",
+  "id": "rag-golden-04",
+  "scenario": "happy_path",
+  "question": "투자상품 광고 시 금융투자협회의 사전심의를 받아야 하는 광고물 종류는 어떻게 되나요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["REG_PAGE", "MANUAL"],
+  "metadata": {
+    "regulation_ref": "금소법 §22 + 금융투자협회 광고심의기준",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

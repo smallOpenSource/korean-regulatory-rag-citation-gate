@@ -1,0 +1,283 @@
+# ADR-007.1 Validator IO Schema — Sidecar to ADR-007
+#
+# Sidecar to ADR-007. Inherits §0 cross-cutting conventions.
+# All schemas MUST include verified_at / status / passed / evidence_paths
+# (ADR-007 §0 cross-cutting conventions).
+#
+# Status: Accepted
+# Supersedes: none (new sidecar)
+# Context: AC24 — NR3 fix; 3-script common output schema (jsonschema-compatible)
+# Scripts governed:
+#   scripts/generate_seven_principles_static_check.py  → seven_principles_static.schema
+#   scripts/aggregate_principle_runtime_metrics.py     → seven_principles_runtime.schema
+#   scripts/verify_total_product_readiness.py          → seven_principles_composite.schema
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "urn:wmah:adr-007.1:validator-io-schema"
+title: "ADR-007.1 Validator IO Schema"
+description: >
+  Shared JSON schemas for the 3-script seven-principles verification pipeline.
+  Inherits ADR-007 §0 cross-cutting conventions: verified_at/status/passed/evidence_paths
+  must appear at root level of every output document.
+
+# ── §0 cross-cutting base (inherited by all three schemas) ───────────────────
+definitions:
+
+  adr007_base:
+    description: "ADR-007 §0 cross-cutting fields required on every validator output."
+    type: object
+    required:
+      - verified_at
+      - status
+      - passed
+      - evidence_paths
+    properties:
+      verified_at:
+        type: string
+        format: date-time
+        description: "ISO-8601 UTC timestamp with seconds precision and trailing Z."
+        pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+      status:
+        type: string
+        enum: ["passed", "failed", "degraded"]
+        description: "passed=all checks OK; degraded=pre-approved reason; failed=check failed."
+      passed:
+        type: boolean
+        description: "true iff status ∈ {passed, degraded} (degraded with pre-approved reason is gate-passing)."
+      evidence_paths:
+        type: array
+        items:
+          type: string
+        description: "Relative paths of files written during this run."
+
+  # ── Per-cell result (static check) ──────────────────────────────────────────
+  static_cell:
+    type: object
+    required:
+      - id
+      - principle
+      - score
+      - label
+      - evidence_files
+    properties:
+      id:
+        type: string
+        description: "Cell identifier: <principle>__<agent> (e.g. P1_safety__rag_qa)."
+        pattern: "^P[1-7]_[a-z]+__[a-z_]+$"
+      principle:
+        type: string
+        enum:
+          - P1_safety
+          - P2_accountability
+          - P3_transparency
+          - P4_fairness
+          - P5_privacy
+          - P6_security
+          - P7_robustness
+      score:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+        description: "Aggregated static evidence score for this principle × agent pair."
+      label:
+        type: string
+        enum: ["passed", "failed"]
+        description: "passed iff score >= principle_floor (default 0.6)."
+      evidence_files:
+        type: array
+        items:
+          type: string
+        description: "Source files counted as evidence anchors for this cell."
+
+  # ── Runtime measurement record ───────────────────────────────────────────────
+  runtime_measurement:
+    type: object
+    required:
+      - principle_id
+      - metric
+      - value
+      - sample_n
+      - denominator_source
+      - denominator
+      - last_measured_at
+      - expires_at
+      - source_path
+    properties:
+      principle_id:
+        type: string
+        enum:
+          - P1_safety
+          - P2_accountability
+          - P3_transparency
+          - P4_fairness
+          - P5_privacy
+          - P6_security
+          - P7_robustness
+      metric:
+        type: string
+        enum:
+          - faithfulness
+          - fail_closed_rate
+          - injection_detected_rate
+          - dual_llm_disagreement_rate
+          - pii_false_negative_rate
+        description: "Name of the runtime metric being measured."
+      value:
+        type: ["number", "null"]
+        minimum: 0.0
+        maximum: 1.0
+        description: "Computed metric value [0.0–1.0]. null if unavailable."
+      p95:
+        type: ["number", "null"]
+        description: "95th-percentile value if available; null otherwise."
+      sample_n:
+        type: integer
+        minimum: 0
+        description: "Numerator count (events matching this metric)."
+      denominator_source:
+        type: string
+        const: "audit_logs.AI_CALL_STARTED"
+        description: "NR1+NR7 fix: denominator is always AI_CALL_STARTED count, never ai_jobs.STARTED."
+      denominator:
+        type: integer
+        minimum: 0
+        description: "Total AI_CALL_STARTED events in the measurement window."
+      last_measured_at:
+        type: string
+        format: date-time
+        pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        description: "UTC timestamp when this measurement was computed."
+      expires_at:
+        type: string
+        format: date-time
+        pattern: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$"
+        description: "last_measured_at + 7d; composite gate rejects stale measurements."
+      source_path:
+        type: string
+        description: "Relative path where this JSON file is stored."
+
+# ── Schema 1: seven_principles_static ────────────────────────────────────────
+schemas:
+
+  seven_principles_static.schema:
+    description: >
+      Output schema for scripts/generate_seven_principles_static_check.py.
+      STATIC self-assessment only — file existence anchors, no live queries.
+    allOf:
+      - $ref: "#/definitions/adr007_base"
+    type: object
+    required:
+      - verified_at
+      - status
+      - passed
+      - evidence_paths
+      - principles
+    properties:
+      verified_at:
+        $ref: "#/definitions/adr007_base/properties/verified_at"
+      status:
+        $ref: "#/definitions/adr007_base/properties/status"
+      passed:
+        $ref: "#/definitions/adr007_base/properties/passed"
+      evidence_paths:
+        $ref: "#/definitions/adr007_base/properties/evidence_paths"
+      principles:
+        type: object
+        description: "Map of principle_id → principle result."
+        additionalProperties:
+          type: object
+          required:
+            - score
+            - passed
+            - floor
+            - agents
+          properties:
+            score:
+              type: number
+              minimum: 0.0
+              maximum: 1.0
+            passed:
+              type: boolean
+            floor:
+              type: number
+              description: "Minimum acceptable score (default 0.6)."
+            agents:
+              type: object
+              description: "Map of agent_id → {score, evidence}."
+              additionalProperties:
+                type: object
+                required: [score, evidence]
+                properties:
+                  score:
+                    type: number
+                    minimum: 0.0
+                    maximum: 1.0
+                  evidence:
+                    type: array
+                    items:
+                      type: string
+      cells:
+        type: array
+        description: "Optional flattened cell list for downstream consumers."
+        items:
+          $ref: "#/definitions/static_cell"
+
+  # ── Schema 2: seven_principles_runtime ───────────────────────────────────────
+  seven_principles_runtime.schema:
+    description: >
+      Output schema for individual files written by
+      scripts/aggregate_principle_runtime_metrics.py.
+      Each file covers one (principle, metric) pair.
+    $ref: "#/definitions/runtime_measurement"
+
+  # ── Schema 3: seven_principles_composite ─────────────────────────────────────
+  seven_principles_composite.schema:
+    description: >
+      Composite gate result embedded in scripts/verify_total_product_readiness.py
+      output under components.composite_gate. AND gate — all four conditions must hold.
+    allOf:
+      - $ref: "#/definitions/adr007_base"
+    type: object
+    required:
+      - verified_at
+      - status
+      - passed
+      - evidence_paths
+      - composite_passed
+      - static_passed
+      - runtime_passed
+      - denominator
+      - freshness_days
+    properties:
+      verified_at:
+        $ref: "#/definitions/adr007_base/properties/verified_at"
+      status:
+        $ref: "#/definitions/adr007_base/properties/status"
+      passed:
+        $ref: "#/definitions/adr007_base/properties/passed"
+      evidence_paths:
+        $ref: "#/definitions/adr007_base/properties/evidence_paths"
+      composite_passed:
+        type: boolean
+        description: >
+          True iff: STATIC.passed AND RUNTIME.passed AND freshness_days <= 7 AND denominator >= 1.
+          OR-leak blocked (pre-mortem S4): all four conditions are AND-required.
+      static_passed:
+        type: boolean
+        description: "Result of generate_seven_principles_static_check.py."
+      runtime_passed:
+        type: boolean
+        description: "True iff all runtime measurement files are fresh and have denominator >= 1."
+      denominator:
+        type: integer
+        minimum: 0
+        description: "Minimum AI_CALL_STARTED count across all runtime measurement files."
+      freshness_days:
+        type: ["number", "null"]
+        description: "Maximum age in days across all runtime measurement files. null if no files."
+      static_result:
+        type: object
+        description: "Reference to the static result consumed by this composite check."
+      runtime_result:
+        type: object
+        description: "Summary of runtime measurements consumed by this composite check."

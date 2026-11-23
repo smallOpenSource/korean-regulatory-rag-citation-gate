@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: consent withdrawal rights under personal information law",
+  "id": "rag-golden-06",
+  "scenario": "happy_path",
+  "question": "고객이 개인정보 수집·이용 동의를 철회할 때 금융회사가 이행해야 하는 절차는 무엇인가요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["REG_PAGE", "MANUAL"],
+  "metadata": {
+    "regulation_ref": "신용정보법 §37 동의철회",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

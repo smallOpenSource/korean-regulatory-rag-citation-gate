@@ -1,0 +1,38 @@
+[project]
+name = "harness-wmah"
+version = "0.1.0"
+description = "Internal PB/WM AI support service PoC"
+requires-python = "==3.11.5"
+dependencies = [
+  "asyncpg>=0.29",
+  "fastapi>=0.110",
+  "openai>=1.40",
+  "pykrx>=1.2.8",
+  "pypdf>=5.0",
+  "pyyaml>=6.0",
+  "redis>=5",
+  "reportlab>=4.0",
+  "uvicorn>=0.29",
+  "websockets>=12,<14",
+  "wsproto>=1.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = [".", "apps/api"]
+testpaths = ["tests"]
+markers = [
+  "compliance: compliance gate negative-path tests (REG-01/02)",
+  "integration: tests requiring real PG17 + Redis + API server",
+  "poc_auto_approval: PoC_AUTO_APPROVAL 5-role × 14-scenario matrix (REG-06)",
+  "rag_golden: RAG golden 10-case regression tests (REG-04 T260)",
+  "seven_agents_golden: 7-agent JSON-schema golden snapshot tests (REG-04 T261)",
+  "security: security boundary and cryptographic enforcement tests",
+  "poc_demo_governance: 5-role × 14-scenario PoC governance matrix (W5-T1, REG-06 §5)",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]

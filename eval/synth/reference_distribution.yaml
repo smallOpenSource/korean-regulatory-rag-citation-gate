@@ -1,0 +1,187 @@
+# WMAH Stage 2 Lane 4 — Synthetic data reference distribution (SoT baseline)
+#
+# 본 baseline은 WMAH PoC 의 합성 데이터에 대해 expected distribution 을 명시한 PM-default.
+# stats_plan.py 가 본 file 의 spec 과 DB 실제 distribution 을 KS-test / Chi-squared / Wasserstein 으로 비교.
+#
+# 사용자가 override 가능 (PM-default 라는 점 명시 의무 — 측정 시작 전 baseline 부재 상태 금지).
+#
+# 참고: V*.sql 53건 + 7 fixtures 로 시드되는 데이터를 가정.
+
+version: "stage-2-lane-4-v1"
+baseline_source: "PM-default (사용자 override 가능)"
+limitation_notice: |
+  본 reference distribution 은 PM 추정치이며 사용자 panel 확정 baseline 이 아님.
+  STRICT_PASS 판정 전 사용자 PM 의 확정 동의 필요.
+
+columns:
+  customers.risk_grade_code:
+    type: categorical
+    description: "고객 위험등급 (1=초저위험 ... 6=초고위험)"
+    expected_dist:
+      "1": 0.10
+      "2": 0.20
+      "3": 0.30
+      "4": 0.25
+      "5": 0.10
+      "6": 0.05
+    test: chi_squared
+    pvalue_threshold: 0.01
+    verdict_thresholds:
+      PASS_pvalue_ge: 0.05
+      WARN_pvalue_ge: 0.01
+
+  customers.total_assets_krw:
+    type: continuous
+    distribution: lognormal
+    parameters:
+      mu: 20.5      # ln(약 8억 KRW)
+      sigma: 1.2    # right-skewed (1억 ~ 100억)
+    description: "고객 총자산 KRW; lognormal right-skewed (1억 ~ 100억 fit)"
+    test: ks_test
+    pvalue_threshold: 0.01
+    verdict_thresholds:
+      PASS_pvalue_ge: 0.05
+      WARN_pvalue_ge: 0.01
+      wasserstein_warn_pct: 0.10  # mean 의 10% 초과 시 WARN
+
+  customers.is_active:
+    type: boolean
+    description: "고객 활성 상태"
+    expected_dist:
+      "true": 0.85
+      "false": 0.15
+    test: chi_squared
+    pvalue_threshold: 0.01
+    edge_case_required: true
+
+  consultations.status_code:
+    type: categorical
+    description: "상담 상태 enum"
+    expected_dist:
+      "SAVED": 0.40
+      "IN_PROGRESS": 0.25
+      "COMPLETED": 0.20
+      "CANCELLED": 0.10
+      "REVIEWED": 0.05
+    test: chi_squared
+    pvalue_threshold: 0.01
+    verdict_thresholds:
+      PASS_pvalue_ge: 0.05
+      WARN_pvalue_ge: 0.01
+
+  nba_actions.status_code:
+    type: categorical
+    description: "NBA action 상태 enum"
+    expected_dist:
+      "OPEN": 0.40
+      "IN_PROGRESS": 0.20
+      "COMPLETED": 0.20
+      "DISMISSED": 0.15
+      "EXPIRED": 0.05
+    test: chi_squared
+    pvalue_threshold: 0.01
+    verdict_thresholds:
+      PASS_pvalue_ge: 0.05
+      WARN_pvalue_ge: 0.01
+
+  audit_logs.actor_id:
+    type: not_null_rate
+    description: "감사 로그의 actor_id 비-NULL 비율 (UNATTRIBUTED batch event 제외 ≥ 95%)"
+    expected_not_null_rate: 0.95
+    test: bernoulli_rate
+    verdict_thresholds:
+      PASS_rate_ge: 0.95
+      WARN_rate_ge: 0.90
+      FAIL_rate_lt: 0.90
+
+  audit_logs.event_ts:
+    type: timestamp_spread
+    description: "감사 로그 timestamp 분산: 모두 같은 second 가 아니고 span ≥ 30 days"
+    expected_min_span_days: 30
+    expected_distinct_second_ratio_ge: 0.50
+    test: timestamp_spread
+    verdict_thresholds:
+      PASS_span_days_ge: 30
+      WARN_span_days_ge: 14
+      FAIL_span_days_lt: 14
+
+  portfolio_holdings.product_name:
+    type: not_null_rate
+    description: "포트폴리오 상품명 비-NULL 비율 (≥ 99%)"
+    expected_not_null_rate: 0.99
+    test: bernoulli_rate
+    verdict_thresholds:
+      PASS_rate_ge: 0.99
+      WARN_rate_ge: 0.95
+      FAIL_rate_lt: 0.95
+
+  customers.created_at:
+    type: timestamp_spread
+    description: "고객 생성 시점 분산: span ≥ 30 days, not all same-second"
+    expected_min_span_days: 30
+    expected_distinct_second_ratio_ge: 0.50
+    test: timestamp_spread
+
+edge_cases:
+  - id: ec_inactive_customer
+    description: "is_active=false 고객 ≥ 1명 존재"
+    query: "SELECT COUNT(*) FROM customers WHERE is_active = FALSE"
+    expected: ">= 1"
+    severity: HIGH
+
+  - id: ec_cancelled_consultation
+    description: "status_code='CANCELLED' 상담 ≥ 1건 존재"
+    query: "SELECT COUNT(*) FROM consultations WHERE status_code = 'CANCELLED'"
+    expected: ">= 1"
+    severity: HIGH
+
+  - id: ec_expired_nba
+    description: "status_code='EXPIRED' nba_action ≥ 1건 존재"
+    query: "SELECT COUNT(*) FROM nba_actions WHERE status_code = 'EXPIRED'"
+    expected: ">= 1"
+    severity: MEDIUM
+
+  - id: ec_null_product_name
+    description: "portfolio_holdings.product_name IS NULL 인 row 존재 여부 (역설적으로 0건이어야 정상; 존재 시 데이터 결함)"
+    query: "SELECT COUNT(*) FROM portfolio_holdings WHERE product_name IS NULL"
+    expected: "== 0"
+    severity: HIGH
+
+  - id: ec_dismissed_nba
+    description: "status_code='DISMISSED' nba_action ≥ 1건 (PB 사용자가 dismiss 흐름 시연)"
+    query: "SELECT COUNT(*) FROM nba_actions WHERE status_code = 'DISMISSED'"
+    expected: ">= 1"
+    severity: MEDIUM
+
+  - id: ec_reviewed_consultation
+    description: "status_code='REVIEWED' 상담 ≥ 1건 (WM review 흐름)"
+    query: "SELECT COUNT(*) FROM consultations WHERE status_code = 'REVIEWED'"
+    expected: ">= 1"
+    severity: MEDIUM
+
+  - id: ec_high_risk_customer
+    description: "risk_grade_code=6 초고위험 고객 ≥ 1명"
+    query: "SELECT COUNT(*) FROM customers WHERE risk_grade_code = 6"
+    expected: ">= 1"
+    severity: LOW
+
+  - id: ec_audit_log_actor_null
+    description: "actor_id IS NULL 인 audit_log (UNATTRIBUTED batch event 케이스) 일부 존재 OK; 전부 NULL 이면 결함"
+    query: "SELECT COUNT(*) FROM audit_logs WHERE actor_id IS NULL"
+    expected: "< total * 0.05"
+    severity: HIGH
+
+  - id: ec_email_draft_pending
+    description: "email_drafts status='PENDING' 또는 'DRAFT' 존재"
+    query: "SELECT COUNT(*) FROM email_drafts WHERE status_code IN ('PENDING','DRAFT')"
+    expected: ">= 1"
+    severity: LOW
+
+sampling:
+  per_column_limit: 10000
+  random_seed: 42
+
+verdict_legend:
+  PASS: "expected distribution 과 일치 (pvalue 또는 rate 기준 충족)"
+  WARN: "약간의 편차 (threshold 사이)"
+  FAIL: "유의미한 편차 또는 edge case 부재"

@@ -1,0 +1,28 @@
+{
+  "_comment": "Golden JSON-schema regression for portfolio_analysis agent (REG-04 T261)",
+  "agent_id": "portfolio_analysis",
+  "required_keys": ["job_type_code", "status_code", "resource_id"],
+  "key_types": {
+    "job_type_code": "string",
+    "status_code": "string",
+    "resource_id": "string"
+  },
+  "value_constraints": {
+    "job_type_code": {"allowed_values": ["portfolio_analysis"]},
+    "status_code": {"allowed_values": ["PENDING", "RUNNING", "SUCCEEDED", "FAILED", "BLOCKED"]}
+  },
+  "ai_output_required_keys": [
+    "summary",
+    "drift_analysis",
+    "risk_flags",
+    "action_suggestions"
+  ],
+  "ai_output_non_empty": ["summary", "risk_flags"],
+  "valuation_source_required": true,
+  "forbidden_keys": ["system_prompt", "raw_provider_response", "pii_raw"],
+  "ai_badge_required": true,
+  "metadata": {
+    "task_id": "T261",
+    "ref": "REG-04 §3 portfolio_analysis governance checklist + source_as_of staleness check"
+  }
+}

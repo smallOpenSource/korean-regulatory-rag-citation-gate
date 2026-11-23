@@ -1,0 +1,14 @@
+{
+  "_comment": "Happy path: unfair solicitation prohibition - loss compensation language",
+  "id": "rag-golden-03",
+  "scenario": "happy_path",
+  "question": "손실보전을 암시하는 문구가 포함된 권유 자료를 사용했을 때 발생하는 법적 제재는 무엇인가요?",
+  "expected_faithfulness_min": 0.7,
+  "expected_fail_closed_reason_code": null,
+  "expected_source_types": ["REG_PAGE", "MANUAL"],
+  "metadata": {
+    "regulation_ref": "자본시장법 §71 불건전영업행위",
+    "task_id": "T260",
+    "agent": "rag_qa"
+  }
+}

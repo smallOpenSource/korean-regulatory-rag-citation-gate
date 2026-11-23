@@ -1,0 +1,26 @@
+{
+  "_doc": "svc-viability-v3 A1 — design-intent placeholder cells produced by audit_v1_copy_pb_perspective.py. All 19 cells observed to render em-dash ('—') as a deliberate empty-state signal. Map by slug+role → classification. Loaded by scripts/audit_v1_copy_pb_perspective.py:empty_state_spec_candidate().",
+  "_schema_version": 1,
+  "_partition_invariant": "for all 19 cells: current_classification in {design_intent, genuine_missing} AND |design_intent| + |genuine_missing| == 19",
+  "cells": {
+    "house-views|PB": "design_intent",
+    "house-views|WM": "design_intent",
+    "house-views|ADMIN": "design_intent",
+    "house-views|AUDIT_VIEWER": "design_intent",
+    "marketing-review|PB": "design_intent",
+    "marketing-review|WM": "design_intent",
+    "marketing-review|ADMIN": "design_intent",
+    "autopilot-demo|PB": "design_intent",
+    "autopilot-demo|WM": "design_intent",
+    "autopilot-demo|ADMIN": "design_intent",
+    "email-drafts|PB": "design_intent",
+    "email-drafts|WM": "design_intent",
+    "conflict-of-interest|PB": "design_intent",
+    "conflict-of-interest|ADMIN": "design_intent",
+    "audit|ADMIN": "design_intent",
+    "audit|AUDIT_VIEWER": "design_intent",
+    "audit-viewer|ADMIN": "design_intent",
+    "audit-viewer|AUDIT_VIEWER": "design_intent",
+    "batch|ADMIN": "design_intent"
+  }
+}
